@@ -194,7 +194,8 @@ UI admin sobre, cohérente avec les tokens Direction B mais sans fioritures édi
 
 - Container **Next.js standalone**, `HOSTNAME=0.0.0.0`, healthcheck `wget 127.0.0.1:PORT`
   (IPv4, BusyBox).
-- **Postgres** (service compose ou Postgres partagé du VPS selon disponibilité).
+- **Postgres** : **nouveau service dédié créé dans le docker-compose** du projet (pas de
+  réutilisation d'un Postgres existant), volume persistant.
 - Domaine déclaré **à la fois** dans l'UI Dokploy **et** les labels Traefik du compose
   (sinon router orphelin / 500).
 - Vérifier le container **healthy** avant tout débogage Traefik (unhealthy → router invisible).
