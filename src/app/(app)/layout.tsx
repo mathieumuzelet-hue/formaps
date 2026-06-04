@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 
 import { auth } from '@/server/auth'
 import { BNav } from '@/components/nav/BNav'
+import { MobileBrandBar } from '@/components/nav/MobileBrandBar'
+import { MobileTabBar } from '@/components/nav/MobileTabBar'
 import { RouteTransition } from '@/components/nav/RouteTransition'
 
 export default async function AppLayout({
@@ -17,10 +19,14 @@ export default async function AppLayout({
 
   return (
     <>
-      <BNav firstName={session.user.firstName} />
-      <main className="flex-1">
+      <div className="hidden md:block">
+        <BNav firstName={session.user.firstName} />
+      </div>
+      <MobileBrandBar />
+      <main className="flex-1 pb-24 md:pb-0">
         <RouteTransition>{children}</RouteTransition>
       </main>
+      <MobileTabBar />
     </>
   )
 }

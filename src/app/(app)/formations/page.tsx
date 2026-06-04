@@ -6,7 +6,7 @@ export default async function FormationsPage() {
   const formations = await api.formation.list()
 
   return (
-    <div className="px-10 py-7">
+    <div className="px-5 py-7 md:px-10">
       <div className="mb-[22px] max-w-[620px]">
         <h1 className="font-serif text-[34px] font-medium tracking-[-0.02em]">
           Espace Formation
@@ -17,7 +17,7 @@ export default async function FormationsPage() {
           téléchargement PDF arrivent ensuite.
         </p>
       </div>
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {formations.map((formation, i) => (
           <FormationCard key={formation.id} formation={formation} index={i} />
         ))}

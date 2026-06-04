@@ -64,7 +64,7 @@ export function BrainChat() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[860px] flex-1 flex-col px-[40px] pt-[26px]">
+    <div className="mx-auto flex w-full max-w-[860px] flex-1 flex-col px-5 pt-[26px] md:px-10">
       {/* Header */}
       <div className="mb-[22px] flex items-center gap-[13px]">
         <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full bg-red">

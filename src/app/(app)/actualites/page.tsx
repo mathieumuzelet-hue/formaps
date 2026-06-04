@@ -1,6 +1,6 @@
 export default function ActualitesPage() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-10 py-24 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center px-5 py-24 text-center md:px-10">
       <div className="mb-4 text-[13px] font-bold uppercase tracking-[0.04em] text-red">
         Actualités
       </div>

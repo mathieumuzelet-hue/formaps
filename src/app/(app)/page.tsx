@@ -20,11 +20,11 @@ export default async function HomePage() {
   // Graceful state for a user without a store rattaché.
   if (!store) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center px-10 py-24 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center px-5 py-24 text-center md:px-10">
         <div className="mb-4 text-[13px] font-bold uppercase tracking-[0.04em] text-red">
           Votre trajet
         </div>
-        <h1 className="font-serif text-[38px] font-medium leading-[1.05] tracking-[-0.02em]">
+        <h1 className="font-serif text-[27px] font-medium leading-[1.05] tracking-[-0.02em] md:text-[38px]">
           Bonjour {firstName}.
         </h1>
         <p className="mt-4 max-w-[440px] text-[15.5px] leading-[1.6] text-sub">
@@ -36,19 +36,19 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="flex flex-col gap-[22px] px-10 py-[30px]">
+    <div className="flex flex-col gap-[22px] px-5 py-[30px] md:px-10">
       {/* Header */}
-      <div className="flex items-end gap-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:gap-5">
         <div>
           <div className="mb-1.5 text-[13px] font-bold uppercase tracking-[0.04em] text-red">
             Votre trajet · Magasin de {store.name.toUpperCase()}
           </div>
-          <h1 className="font-serif text-[38px] font-medium leading-[1.05] tracking-[-0.02em]">
+          <h1 className="font-serif text-[27px] font-medium leading-[1.05] tracking-[-0.02em] md:text-[38px]">
             Bonjour {firstName}, plus que{' '}
             <span className="text-red">{joursLabel(store.joursRestants)}</span>.
           </h1>
         </div>
-        <div className="ml-auto text-right">
+        <div className="md:ml-auto md:text-right">
           <div className="text-[13px] text-sub">Étape en cours</div>
           <div className="text-[17px] font-extrabold">
             {store.currentStep + 1} · {store.currentStepLabel}
@@ -57,12 +57,17 @@ export default async function HomePage() {
       </div>
 
       {/* Route card */}
-      <div className="rounded-[18px] border border-line bg-surface px-10 pb-6 pt-[26px]">
-        <BRoute current={store.currentStep} />
+      <div className="rounded-[18px] border border-line bg-surface px-5 pb-6 pt-[26px] md:px-10">
+        <div className="md:hidden">
+          <BRoute current={store.currentStep} compact />
+        </div>
+        <div className="hidden md:block">
+          <BRoute current={store.currentStep} />
+        </div>
       </div>
 
       {/* Access cards */}
-      <div className="grid grid-cols-2 gap-[18px]">
+      <div className="grid grid-cols-1 gap-[18px] md:grid-cols-2">
         <Link
           href="/formations"
           className="relative overflow-hidden rounded-[18px] border border-line bg-card px-[26px] py-6 text-ink"
@@ -113,7 +118,7 @@ export default async function HomePage() {
             Tout l’espace formation →
           </Link>
         </div>
-        <div className="grid grid-cols-3 gap-[14px]">
+        <div className="grid grid-cols-1 gap-[14px] sm:grid-cols-3">
           {formations.slice(0, 3).map((f) => {
             const percent = summary.percentByFormation[f.id] ?? 0
             return (

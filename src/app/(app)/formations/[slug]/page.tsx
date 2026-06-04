@@ -30,7 +30,7 @@ export default async function FormationDetailPage({
   const percent = summary.percentByFormation[formation.id] ?? 0
 
   return (
-    <div className="grid grid-cols-[1.7fr_1fr] gap-[34px] px-10 py-[26px]">
+    <div className="grid grid-cols-1 gap-[34px] px-5 py-[26px] md:px-10 lg:grid-cols-[1.7fr_1fr]">
       {/* Left column */}
       <div>
         {/* Breadcrumb */}
@@ -46,7 +46,7 @@ export default async function FormationDetailPage({
         <div className="mb-2 text-[12.5px] font-bold uppercase tracking-[0.05em] text-red">
           {formation.tag.toUpperCase()}
         </div>
-        <h1 className="font-serif text-[40px] font-medium leading-[1.05] tracking-[-0.02em]">
+        <h1 className="font-serif text-[28px] font-medium leading-[1.05] tracking-[-0.02em] md:text-[40px]">
           {formation.name}
         </h1>
         <p className="my-[14px] mb-[18px] max-w-[560px] font-serif text-[17.5px] leading-[1.55] text-sub">
