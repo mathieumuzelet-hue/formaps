@@ -50,12 +50,20 @@ export async function POST(request: Request): Promise<Response> {
   let upstream: Response
   try {
     upstream = await streamChat({ query, user: userId, conversationId })
-  } catch {
+  } catch (err) {
+    console.error('[brain] Dify fetch a échoué (réseau/URL ?):', err)
     return json({ error: 'dify_unavailable' }, 502)
   }
 
   if (!upstream.ok || !upstream.body) {
-    return json({ error: 'dify_unavailable' }, 502)
+    let detail = ''
+    try {
+      detail = (await upstream.text()).slice(0, 500)
+    } catch {
+      /* ignore */
+    }
+    console.error(`[brain] Dify a répondu ${upstream.status}: ${detail}`)
+    return json({ error: 'dify_unavailable', status: upstream.status }, 502)
   }
 
   // Relay the SSE stream untouched, while inspecting chunks to capture the

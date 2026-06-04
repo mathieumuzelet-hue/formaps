@@ -27,7 +27,7 @@ conteneur `web` (`node scripts/migrate.mjs && node server.js`). Si une migration
 | `POSTGRES_PASSWORD` | Mot de passe de la base                                            |
 | `POSTGRES_DB`       | Nom de la base                                                     |
 | `AUTH_SECRET`       | Secret de session Auth.js — `openssl rand -base64 32`            |
-| `DIFY_API_URL`      | URL réseau interne du conteneur Dify (ex. `http://dify-api:5001`) |
+| `DIFY_API_URL`      | Base API Dify, ex. `https://live.apsbot.fr/v1` (le `/v1` final est toléré ; on appelle `/v1/chat-messages`). URL publique simple, ou URL réseau interne si réseau Docker partagé |
 | `DIFY_API_KEY`      | Clé API de l'app Dify                                              |
 | `BOOTSTRAP_ADMIN_EMAIL`     | (option) email de l'admin créé au boot                    |
 | `BOOTSTRAP_ADMIN_PASSWORD`  | (option) mot de passe de cet admin                        |

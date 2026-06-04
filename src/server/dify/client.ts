@@ -23,7 +23,12 @@ export async function streamChat({ query, user, conversationId }: StreamChatArgs
     throw new Error('DIFY_API_URL and DIFY_API_KEY must be set')
   }
 
-  return fetch(`${apiUrl}/v1/chat-messages`, {
+  // Tolerate both forms of base URL: Dify shows the API base as
+  // `https://host/v1`, but we append `/v1/chat-messages` ourselves. Strip a
+  // trailing slash and a trailing `/v1` so we never produce `/v1/v1/...`.
+  const base = apiUrl.replace(/\/+$/, '').replace(/\/v1$/, '')
+
+  return fetch(`${base}/v1/chat-messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
