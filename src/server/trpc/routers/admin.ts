@@ -7,8 +7,16 @@ import { z } from 'zod'
 
 import { formationDocuments, formations, stores, users } from '@/server/db/schema'
 import { hashPassword } from '@/server/auth/password'
+import { generatePassword } from '@/server/auth/generate-password'
 import { prepareUserInsert } from '@/lib/admin/prepare-user'
 import { stripPassword } from '@/lib/admin/sanitize-user'
+import {
+  normalizeHeader,
+  parseStoreRows,
+  parseUserRows,
+  resolveStoreId,
+  type RowError,
+} from '@/lib/admin/csv-import'
 import {
   formationCreateSchema,
   formationUpdateSchema,
@@ -34,6 +42,9 @@ function isUniqueViolation(err: unknown): boolean {
   )
 }
 
+/** Input shape for bulk-import mutations: parsed CSV rows (string→string maps). */
+const bulkImportSchema = z.array(z.record(z.string(), z.string())).max(2000)
+
 const storesRouter = router({
   /** All stores ordered by name. */
   list: adminProcedure.query(async ({ ctx }) => {
@@ -55,6 +66,31 @@ const storesRouter = router({
 
     if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
     return row
+  }),
+
+  /**
+   * Bulk-create stores from parsed CSV rows. Parse errors and per-row DB errors
+   * are collected and returned alongside the count of successfully created rows.
+   */
+  bulkCreate: adminProcedure.input(bulkImportSchema).mutation(async ({ ctx, input }) => {
+    const { valid, errors } = parseStoreRows(input)
+    const allErrors: RowError[] = [...errors]
+    let created = 0
+
+    for (const { row, data } of valid) {
+      try {
+        await ctx.db.insert(stores).values(data)
+        created += 1
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          allErrors.push({ row, message: `Magasin déjà existant : ${data.name}` })
+        } else {
+          allErrors.push({ row, message: "Erreur d'insertion en base." })
+        }
+      }
+    }
+
+    return { created, errors: allErrors }
   }),
 })
 
@@ -182,6 +218,55 @@ const usersRouter = router({
 
     if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
     return stripPassword(row)
+  }),
+
+  /**
+   * Bulk-create users from parsed CSV rows. Each user gets a server-generated
+   * password; only its argon2 hash is stored, while the plaintext is returned in
+   * the result so the admin can distribute credentials. Store names are resolved
+   * to ids against the existing stores; unknown names are reported per row.
+   */
+  bulkCreate: adminProcedure.input(bulkImportSchema).mutation(async ({ ctx, input }) => {
+    const { valid, errors } = parseUserRows(input)
+    const allErrors: RowError[] = [...errors]
+    const created: Array<{ row: number; email: string; firstName: string; password: string }> = []
+
+    // Build a name→id map once for store resolution.
+    const storeRows = await ctx.db
+      .select({ id: stores.id, name: stores.name })
+      .from(stores)
+    const storeIdByName = new Map<string, string>()
+    for (const s of storeRows) {
+      storeIdByName.set(normalizeHeader(s.name), s.id)
+    }
+
+    for (const { row, data } of valid) {
+      const storeId = resolveStoreId(storeIdByName, data.storeName)
+      if (storeId === undefined) {
+        allErrors.push({ row, message: `Magasin "${data.storeName}" introuvable` })
+        continue
+      }
+
+      const password = generatePassword()
+      const passwordHash = await hashPassword(password)
+      const insert = prepareUserInsert(
+        { email: data.email, firstName: data.firstName, role: data.role, storeId },
+        passwordHash,
+      )
+
+      try {
+        await ctx.db.insert(users).values(insert)
+        created.push({ row, email: data.email, firstName: data.firstName, password })
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          allErrors.push({ row, message: `Email déjà utilisé : ${data.email}` })
+        } else {
+          allErrors.push({ row, message: "Erreur d'insertion en base." })
+        }
+      }
+    }
+
+    return { created, errors: allErrors }
   }),
 })
 
