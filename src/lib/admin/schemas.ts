@@ -13,6 +13,13 @@ export const storeUpdateSchema = z.object({
   currentStep: z.number().int().min(0).max(4).optional(),
 })
 
+/** Input schema for `admin.stores.create`. */
+export const storeCreateSchema = z.object({
+  name: z.string().min(1),
+  basculeDate: z.string().min(1),
+  currentStep: z.number().int().min(0).max(4),
+})
+
 /** Shared formation field schemas (used by create; partial for update). */
 export const formationFields = {
   name: z.string().min(1),

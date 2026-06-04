@@ -45,7 +45,9 @@ export function MagasinsAdmin() {
   const stores = (list.data ?? []) as Store[]
 
   return (
-    <div className="mt-6 overflow-hidden rounded-[14px] border border-line bg-card">
+    <div className="mt-6 space-y-6">
+      <StoreCreateForm />
+      <div className="overflow-hidden rounded-[14px] border border-line bg-card">
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-line bg-surface">
@@ -93,6 +95,85 @@ export function MagasinsAdmin() {
           )}
         </tbody>
       </table>
+      </div>
+    </div>
+  )
+}
+
+function StoreCreateForm() {
+  const utils = trpc.useUtils()
+  const [name, setName] = useState('')
+  const [basculeDate, setBasculeDate] = useState('')
+  const [currentStep, setCurrentStep] = useState(0)
+
+  const create = trpc.admin.stores.create.useMutation({
+    onSuccess: async () => {
+      setName('')
+      setBasculeDate('')
+      setCurrentStep(0)
+      await utils.admin.stores.list.invalidate()
+    },
+  })
+
+  return (
+    <div className="rounded-[14px] border border-line bg-card p-4">
+      <h2 className="text-[14px] font-semibold text-ink">Nouveau magasin</h2>
+      <form
+        className="mt-3 flex flex-wrap items-end gap-3"
+        onSubmit={(e) => {
+          e.preventDefault()
+          create.mutate({ name, basculeDate, currentStep })
+        }}
+      >
+        <label className="flex flex-col gap-1">
+          <span className="text-[11.5px] font-semibold uppercase tracking-wide text-faint">
+            Magasin
+          </span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nom du magasin"
+            className="rounded-lg border border-line bg-card px-2.5 py-1.5 text-[14px]"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11.5px] font-semibold uppercase tracking-wide text-faint">
+            Date de bascule
+          </span>
+          <input
+            type="date"
+            value={basculeDate}
+            onChange={(e) => setBasculeDate(e.target.value)}
+            className="rounded-lg border border-line bg-card px-2.5 py-1.5 text-[14px]"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11.5px] font-semibold uppercase tracking-wide text-faint">
+            Étape
+          </span>
+          <select
+            value={currentStep}
+            onChange={(e) => setCurrentStep(Number(e.target.value))}
+            className="rounded-lg border border-line bg-card px-2.5 py-1.5 text-[14px]"
+          >
+            {OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          disabled={create.isPending}
+          className="rounded-lg bg-red px-3 py-1.5 text-[13px] font-semibold text-white disabled:opacity-50"
+        >
+          {create.isPending ? 'Création…' : 'Créer'}
+        </button>
+        {create.isError && (
+          <span className="w-full text-[13px] text-red">{create.error.message}</span>
+        )}
+      </form>
     </div>
   )
 }

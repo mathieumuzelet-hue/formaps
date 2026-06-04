@@ -9,6 +9,7 @@ import { stripPassword } from '@/lib/admin/sanitize-user'
 import {
   formationCreateSchema,
   formationUpdateSchema,
+  storeCreateSchema,
   storeUpdateSchema,
   userCreateSchema,
   userUpdateSchema,
@@ -34,6 +35,11 @@ const storesRouter = router({
   /** All stores ordered by name. */
   list: adminProcedure.query(async ({ ctx }) => {
     return ctx.db.select().from(stores).orderBy(asc(stores.name))
+  }),
+
+  create: adminProcedure.input(storeCreateSchema).mutation(async ({ ctx, input }) => {
+    const [row] = await ctx.db.insert(stores).values(input).returning()
+    return row
   }),
 
   update: adminProcedure.input(storeUpdateSchema).mutation(async ({ ctx, input }) => {

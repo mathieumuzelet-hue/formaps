@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 
 import { prepareUserInsert } from '@/lib/admin/prepare-user'
 import { stripPassword } from '@/lib/admin/sanitize-user'
-import { storeUpdateSchema } from '@/lib/admin/schemas'
+import { storeCreateSchema, storeUpdateSchema } from '@/lib/admin/schemas'
 
 const UUID = '11111111-1111-4111-8111-111111111111'
 
@@ -44,4 +44,24 @@ test('storeUpdateSchema rejects currentStep out of range', () => {
 
 test('storeUpdateSchema accepts currentStep within range', () => {
   expect(storeUpdateSchema.safeParse({ id: UUID, currentStep: 3 }).success).toBe(true)
+})
+
+test('storeCreateSchema rejects currentStep out of range', () => {
+  expect(
+    storeCreateSchema.safeParse({ name: 'Lille', basculeDate: '2026-06-01', currentStep: 9 })
+      .success,
+  ).toBe(false)
+})
+
+test('storeCreateSchema rejects an empty name', () => {
+  expect(
+    storeCreateSchema.safeParse({ name: '', basculeDate: '2026-06-01', currentStep: 2 }).success,
+  ).toBe(false)
+})
+
+test('storeCreateSchema accepts a valid store', () => {
+  expect(
+    storeCreateSchema.safeParse({ name: 'Lille', basculeDate: '2026-06-01', currentStep: 2 })
+      .success,
+  ).toBe(true)
 })
