@@ -84,7 +84,7 @@ test('upstream non-ok → 502', async () => {
   streamChat.mockResolvedValue(new Response('boom', { status: 500 }))
   const res = await POST(makeRequest({ query: 'salut' }))
   expect(res.status).toBe(502)
-  expect(await res.json()).toEqual({ error: 'dify_unavailable' })
+  expect(await res.json()).toEqual({ error: 'dify_unavailable', status: 500 })
 })
 
 test('streamChat throw → 502', async () => {
