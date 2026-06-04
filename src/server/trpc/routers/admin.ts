@@ -1,8 +1,11 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
 import { asc, eq } from 'drizzle-orm'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
-import { formations, stores, users } from '@/server/db/schema'
+import { formationDocuments, formations, stores, users } from '@/server/db/schema'
 import { hashPassword } from '@/server/auth/password'
 import { prepareUserInsert } from '@/lib/admin/prepare-user'
 import { stripPassword } from '@/lib/admin/sanitize-user'
@@ -102,6 +105,34 @@ const formationsRouter = router({
 
       if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Formation introuvable' })
       return { id: input.id }
+    }),
+
+  /** Documents PDF d'une formation, ordonnés par `order`. */
+  documentsByFormation: adminProcedure
+    .input(z.object({ formationId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db
+        .select()
+        .from(formationDocuments)
+        .where(eq(formationDocuments.formationId, input.formationId))
+        .orderBy(asc(formationDocuments.order))
+    }),
+
+  /** Supprime un document : ligne DB puis fichier sur le volume (unlink). */
+  deleteDocument: adminProcedure
+    .input(z.object({ docId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .delete(formationDocuments)
+        .where(eq(formationDocuments.id, input.docId))
+        .returning()
+
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Document introuvable' })
+
+      const dir = process.env.UPLOADS_DIR || '/app/uploads'
+      await fs.rm(path.join(dir, `${input.docId}.pdf`), { force: true })
+
+      return { docId: input.docId }
     }),
 })
 
