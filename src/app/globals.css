@@ -13,8 +13,8 @@
   --color-redink: #A20D24;
   --color-sand: #EADFC9;
 
-  --font-serif: var(--font-newsreader), Georgia, serif;
-  --font-sans: var(--font-hanken), system-ui, sans-serif;
+  --font-serif: var(--font-montserrat), system-ui, sans-serif;
+  --font-sans: var(--font-montserrat), system-ui, sans-serif;
 }
 
 body {

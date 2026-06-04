@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
-import { Newsreader, Hanken_Grotesk } from "next/font/google";
+import { Montserrat } from "next/font/google";
 import "./globals.css";
 import { TRPCProvider } from "@/lib/trpc/client";
 
-const newsreader = Newsreader({
-  variable: "--font-newsreader",
-  subsets: ["latin"],
-});
-
-const hanken = Hanken_Grotesk({
-  variable: "--font-hanken",
+// Typographie unique du site : Montserrat (variable font, tous les poids).
+// Mappée à la fois sur --font-serif (titres) et --font-sans (corps).
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
   subsets: ["latin"],
 });
 
@@ -27,7 +24,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${newsreader.variable} ${hanken.variable} h-full antialiased`}
+      className={`${montserrat.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
         <TRPCProvider>{children}</TRPCProvider>
