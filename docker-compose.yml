@@ -32,6 +32,11 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       DIFY_API_URL: ${DIFY_API_URL}
       DIFY_API_KEY: ${DIFY_API_KEY}
+      # Bootstrap admin (idempotent au boot) — DOIT être mappé ici pour atteindre
+      # le conteneur ; les variables Dokploy ne servent qu'à l'interpolation compose.
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_FIRSTNAME: ${BOOTSTRAP_ADMIN_FIRSTNAME:-Admin}
       HOSTNAME: 0.0.0.0
       NODE_ENV: production
     networks:
