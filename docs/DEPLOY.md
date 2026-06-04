@@ -29,9 +29,25 @@ conteneur `web` (`node scripts/migrate.mjs && node server.js`). Si une migration
 | `AUTH_SECRET`       | Secret de session Auth.js — `openssl rand -base64 32`            |
 | `DIFY_API_URL`      | URL réseau interne du conteneur Dify (ex. `http://dify-api:5001`) |
 | `DIFY_API_KEY`      | Clé API de l'app Dify                                              |
+| `BOOTSTRAP_ADMIN_EMAIL`     | (option) email de l'admin créé au boot                    |
+| `BOOTSTRAP_ADMIN_PASSWORD`  | (option) mot de passe de cet admin                        |
+| `BOOTSTRAP_ADMIN_FIRSTNAME` | (option) prénom affiché, défaut `Admin`                   |
 
 `DATABASE_URL` est dérivée automatiquement des `POSTGRES_*` dans le compose
 (`postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}`).
+
+⚠️ **`POSTGRES_PASSWORD` doit être alphanumérique** (pas de `@ : / # %`…), sinon il
+casse le `DATABASE_URL` dérivé. Et il n'est appliqué qu'à la **première création** du
+volume : pour le changer ensuite, supprimer le volume (`docker volume rm
+<projet>_cockpit_pgdata`) puis redéployer, sinon `password authentication failed`.
+
+### Premier compte admin (bootstrap par env)
+
+Définir `BOOTSTRAP_ADMIN_EMAIL` + `BOOTSTRAP_ADMIN_PASSWORD` : au démarrage, le conteneur
+crée (ou met à jour le mot de passe d') un compte **admin non rattaché à un magasin**, de
+façon **idempotente** (rejoué à chaque boot). Laisser vide pour ne rien créer. Tant qu'aucun
+compte n'existe, c'est le seul moyen de se connecter (le seed de démo ne tourne pas en prod).
+Le mot de passe vit dans l'env Dokploy = source de vérité ; un redéploiement le réaligne.
 
 ## 3. Domaine + réseau Traefik (points critiques)
 

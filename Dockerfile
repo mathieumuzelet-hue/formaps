@@ -55,5 +55,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=4s --start-period=40s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
 
-# Run migrations, then start the standalone server. Fail loud if migrate fails.
-CMD ["sh", "-c", "node scripts/migrate.mjs && node server.js"]
+# Run migrations, bootstrap the admin (env-driven, idempotent), then start the
+# standalone server. Fail loud if migrate fails.
+CMD ["sh", "-c", "node scripts/migrate.mjs && node scripts/bootstrap-admin.mjs && node server.js"]
