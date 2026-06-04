@@ -1,0 +1,27 @@
+import { getServerCaller } from '@/server/trpc/server'
+import { FormationCard } from '@/components/formations/FormationCard'
+
+export default async function FormationsPage() {
+  const api = await getServerCaller()
+  const formations = await api.formation.list()
+
+  return (
+    <div className="px-10 py-7">
+      <div className="mb-[22px] max-w-[620px]">
+        <h1 className="font-serif text-[34px] font-medium tracking-[-0.02em]">
+          Espace Formation
+        </h1>
+        <p className="mt-2 text-[14.5px] leading-[1.5] text-sub">
+          Les contenus pour maîtriser les nouveaux outils. Dans un premier temps
+          les fiches renvoient vers SharePoint ; les pages dédiées de
+          téléchargement PDF arrivent ensuite.
+        </p>
+      </div>
+      <div className="grid grid-cols-4 gap-4">
+        {formations.map((formation, i) => (
+          <FormationCard key={formation.id} formation={formation} index={i} />
+        ))}
+      </div>
+    </div>
+  )
+}
