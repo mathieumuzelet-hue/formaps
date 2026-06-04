@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Newsreader, Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
+import { TRPCProvider } from "@/lib/trpc/client";
 
 const newsreader = Newsreader({
   variable: "--font-newsreader",
@@ -28,7 +29,9 @@ export default function RootLayout({
       lang="fr"
       className={`${newsreader.variable} ${hanken.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        <TRPCProvider>{children}</TRPCProvider>
+      </body>
     </html>
   );
 }
