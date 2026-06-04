@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 
+import Link from 'next/link'
+
 import { trpc } from '@/lib/trpc/client'
+import { nextSlug } from '@/lib/slug'
 
 type Formation = {
   id: string
@@ -145,6 +148,14 @@ export function FormationsAdmin() {
                   <td className={`${TD} text-sub`}>{f.docCount}</td>
                   <td className={`${TD} text-right`}>
                     <div className="flex justify-end gap-2">
+                      {f.kind === 'pdf' && (
+                        <Link
+                          href={`/admin/formations/${f.id}`}
+                          className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sand/50"
+                        >
+                          Gérer les documents
+                        </Link>
+                      )}
                       <button
                         type="button"
                         onClick={() => setEditing(f.id)}
@@ -194,9 +205,11 @@ function FormationForm({
 }) {
   const utils = trpc.useUtils()
   const [v, setV] = useState<FormValues>(initial)
+  const [slugTouched, setSlugTouched] = useState(false)
 
   const onSuccess = async () => {
     await utils.admin.formations.list.invalidate()
+    setSlugTouched(false)
     onDone()
   }
   const create = trpc.admin.formations.create.useMutation({ onSuccess })
@@ -205,6 +218,20 @@ function FormationForm({
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setV((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function onNameChange(name: string) {
+    setV((prev) => ({
+      ...prev,
+      name,
+      // CREATE only: auto-fill slug from the name until the user edits it.
+      slug: mode === 'create' ? nextSlug(name, slugTouched, prev.slug) : prev.slug,
+    }))
+  }
+
+  function onSlugChange(slug: string) {
+    if (mode === 'create') setSlugTouched(true)
+    setV((prev) => ({ ...prev, slug }))
   }
 
   function submit() {
@@ -245,11 +272,16 @@ function FormationForm({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label className={LABEL}>Nom</label>
-          <input className={INPUT} value={v.name} onChange={(e) => set('name', e.target.value)} />
+          <input className={INPUT} value={v.name} onChange={(e) => onNameChange(e.target.value)} />
         </div>
         <div>
           <label className={LABEL}>Slug</label>
-          <input className={INPUT} value={v.slug} onChange={(e) => set('slug', e.target.value)} />
+          <input className={INPUT} value={v.slug} onChange={(e) => onSlugChange(e.target.value)} />
+          {mode === 'create' && (
+            <p className="mt-1 text-[11.5px] text-faint">
+              Identifiant d&apos;URL — généré depuis le nom, modifiable.
+            </p>
+          )}
         </div>
         <div>
           <label className={LABEL}>Tag</label>

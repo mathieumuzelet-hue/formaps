@@ -14,3 +14,15 @@ export function slugify(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 }
+
+/**
+ * Decide which slug to display in a create form that auto-fills from the name.
+ *
+ * - while the user has NOT manually edited the slug (`slugTouched === false`),
+ *   the slug tracks `slugify(name)`.
+ * - once the user has touched the slug field, their value (`currentSlug`) wins
+ *   and is returned verbatim.
+ */
+export function nextSlug(name: string, slugTouched: boolean, currentSlug: string): string {
+  return slugTouched ? currentSlug : slugify(name)
+}
