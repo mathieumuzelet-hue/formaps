@@ -63,3 +63,26 @@ export const userUpdateSchema = z.object({
   storeId: z.string().uuid().nullable().optional(),
   password: z.string().min(8).optional(),
 })
+
+/** Input schema for `admin.news.create`. */
+export const newsCreateSchema = z.object({
+  title: z.string().min(1),
+  excerpt: z.string().nullable().optional(),
+  contentHtml: z.string().optional(),
+  authorName: z.string().nullable().optional(),
+})
+
+/** Input schema for `admin.news.update`. */
+export const newsUpdateSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1).optional(),
+  excerpt: z.string().nullable().optional(),
+  contentHtml: z.string().optional(),
+  authorName: z.string().nullable().optional(),
+})
+
+/** Input schema for `admin.news.setStatus`. */
+export const newsSetStatusSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['draft', 'published']),
+})

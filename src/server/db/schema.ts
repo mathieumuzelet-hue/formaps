@@ -3,6 +3,7 @@ import { pgTable, uuid, text, integer, date, timestamp, boolean, pgEnum, unique 
 export const roleEnum = pgEnum('role', ['employee', 'admin'])
 export const kindEnum = pgEnum('formation_kind', ['sharepoint', 'pdf'])
 export const progressEnum = pgEnum('progress_status', ['not_started', 'in_progress', 'done'])
+export const newsStatusEnum = pgEnum('news_status', ['draft', 'published'])
 
 export const stores = pgTable('stores', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -57,3 +58,17 @@ export const userFormationProgress = pgTable('user_formation_progress', {
   progressPercent: integer('progress_percent').notNull().default(0),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => ({ uniqUserFormation: unique().on(t.userId, t.formationId) }))
+
+export const news = pgTable('news', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  title: text('title').notNull(),
+  excerpt: text('excerpt'),                 // chapô
+  contentHtml: text('content_html').notNull().default(''),
+  coverImageUrl: text('cover_image_url'),   // /api/news/<id>/cover once uploaded
+  status: newsStatusEnum('status').notNull().default('draft'),
+  authorName: text('author_name'),
+  publishedAt: timestamp('published_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})

@@ -1,11 +1,13 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { asc, eq } from 'drizzle-orm'
+import { asc, desc, eq, like } from 'drizzle-orm'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
-import { formationDocuments, formations, stores, users } from '@/server/db/schema'
+import { formationDocuments, formations, news, stores, users } from '@/server/db/schema'
+import { slugify } from '@/lib/slug'
+import { sanitizeNewsHtml } from '@/server/news/sanitize'
 import { hashPassword } from '@/server/auth/password'
 import { generatePassword } from '@/server/auth/generate-password'
 import { prepareUserInsert } from '@/lib/admin/prepare-user'
@@ -20,6 +22,9 @@ import {
 import {
   formationCreateSchema,
   formationUpdateSchema,
+  newsCreateSchema,
+  newsSetStatusSchema,
+  newsUpdateSchema,
   storeCreateSchema,
   storeUpdateSchema,
   userCreateSchema,
@@ -270,8 +275,122 @@ const usersRouter = router({
   }),
 })
 
+/**
+ * Build a slug unique within the `news` table. Starts from `slugify(title)` and,
+ * if that base (or a `-N` variant) is already taken, picks the lowest free
+ * `-2`, `-3`, … suffix. A single query fetches all colliding slugs.
+ */
+async function uniqueNewsSlug(
+  db: typeof import('@/server/db').db,
+  title: string,
+): Promise<string> {
+  const base = slugify(title) || 'article'
+  const existing = await db
+    .select({ slug: news.slug })
+    .from(news)
+    .where(like(news.slug, `${base}%`))
+  const taken = new Set(existing.map((r) => r.slug))
+
+  if (!taken.has(base)) return base
+  let n = 2
+  while (taken.has(`${base}-${n}`)) n += 1
+  return `${base}-${n}`
+}
+
+const newsRouter = router({
+  /** All news (any status), most recently updated first. */
+  list: adminProcedure.query(async ({ ctx }) => {
+    return ctx.db.select().from(news).orderBy(desc(news.updatedAt))
+  }),
+
+  /** Full article for editing. NOT_FOUND if missing. */
+  byId: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const [row] = await ctx.db.select().from(news).where(eq(news.id, input.id)).limit(1)
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Actualité introuvable' })
+      return row
+    }),
+
+  create: adminProcedure.input(newsCreateSchema).mutation(async ({ ctx, input }) => {
+    const slug = await uniqueNewsSlug(ctx.db, input.title)
+    const values = {
+      slug,
+      title: input.title,
+      excerpt: input.excerpt ?? null,
+      contentHtml: input.contentHtml !== undefined ? sanitizeNewsHtml(input.contentHtml) : '',
+      authorName: input.authorName ?? null,
+      status: 'draft' as const,
+    }
+    try {
+      const [row] = await ctx.db.insert(news).values(values).returning()
+      return row
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        // Slug race: another insert grabbed our slug between check and insert.
+        throw new TRPCError({ code: 'CONFLICT', message: 'Slug déjà utilisé' })
+      }
+      throw err
+    }
+  }),
+
+  update: adminProcedure.input(newsUpdateSchema).mutation(async ({ ctx, input }) => {
+    const { id, contentHtml, ...rest } = input
+    const fields: Record<string, unknown> = { ...rest, updatedAt: new Date() }
+    if (contentHtml !== undefined) {
+      fields.contentHtml = sanitizeNewsHtml(contentHtml)
+    }
+
+    const [row] = await ctx.db.update(news).set(fields).where(eq(news.id, id)).returning()
+    if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Actualité introuvable' })
+    return row
+  }),
+
+  setStatus: adminProcedure.input(newsSetStatusSchema).mutation(async ({ ctx, input }) => {
+    const [current] = await ctx.db
+      .select({ publishedAt: news.publishedAt })
+      .from(news)
+      .where(eq(news.id, input.id))
+      .limit(1)
+    if (!current) throw new TRPCError({ code: 'NOT_FOUND', message: 'Actualité introuvable' })
+
+    const fields: Record<string, unknown> = { status: input.status, updatedAt: new Date() }
+    // First publish stamps publishedAt; re-publishing keeps the original date.
+    if (input.status === 'published' && current.publishedAt === null) {
+      fields.publishedAt = new Date()
+    }
+
+    const [row] = await ctx.db.update(news).set(fields).where(eq(news.id, input.id)).returning()
+    return row
+  }),
+
+  /** Delete the article row and remove its cover file(s) from the volume. */
+  delete: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await ctx.db.delete(news).where(eq(news.id, input.id)).returning()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Actualité introuvable' })
+
+      // Remove any `<id>.*` cover file. Best-effort: a missing dir is fine.
+      const dir = path.join(process.env.UPLOADS_DIR || '/app/uploads', 'news')
+      try {
+        const entries = await fs.readdir(dir)
+        await Promise.all(
+          entries
+            .filter((name) => name.startsWith(`${input.id}.`))
+            .map((name) => fs.rm(path.join(dir, name), { force: true })),
+        )
+      } catch {
+        // Directory may not exist yet (no cover ever uploaded) — ignore.
+      }
+
+      return { id: input.id }
+    }),
+})
+
 export const adminRouter = router({
   stores: storesRouter,
   formations: formationsRouter,
   users: usersRouter,
+  news: newsRouter,
 })
