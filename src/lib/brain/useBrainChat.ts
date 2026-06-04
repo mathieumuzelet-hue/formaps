@@ -15,6 +15,29 @@ export type BrainStatus = 'idle' | 'streaming' | 'error'
 const ERROR_NOTE = 'BRAIN est momentanément indisponible. Réessayez.'
 
 /**
+ * Returns the Dify error message carried by a frame, if any (Dify streams an
+ * `event: error` when the model fails — quota, capacity, provider error).
+ */
+export function frameError(frame: string): string | undefined {
+  for (const payload of parseSSELines(frame)) {
+    const parsed = parseDifyEvent(payload)
+    if (parsed.error) return parsed.error
+  }
+  return undefined
+}
+
+/**
+ * Maps a raw Dify/model error to a short, user-facing message (never dumps the
+ * raw nested provider JSON to the end user).
+ */
+export function difyErrorText(raw: string): string {
+  if (/429|capacity exceeded|service_tier_capacity|rate.?limit/i.test(raw)) {
+    return 'Le modèle est momentanément surchargé. Réessayez dans un instant.'
+  }
+  return "BRAIN n'a pas pu répondre (erreur du modèle). Réessayez, ou prévenez l'administrateur si cela persiste."
+}
+
+/**
  * Splits an SSE accumulation buffer into complete frames.
  *
  * A Dify/SSE frame is terminated by a blank line (`\n\n`). Anything after the
@@ -104,9 +127,11 @@ export function useBrainChat(): UseBrainChat {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
+      let errored = false
 
       // Stream loop: decode → accumulate → split complete frames → reduce.
       // Incomplete trailing frames stay in `buffer` until terminated by `\n\n`.
+      // If Dify streams an `error` event, surface it and stop.
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
@@ -114,13 +139,31 @@ export function useBrainChat(): UseBrainChat {
         const { frames, rest } = splitSSEFrames(buffer)
         buffer = rest
         for (const frame of frames) {
+          const err = frameError(frame)
+          if (err) {
+            const text = difyErrorText(err)
+            updateAi((msg) => ({ ...msg, text }))
+            setStatus('error')
+            errored = true
+            break
+          }
           updateAi((msg) => reduceFrame(msg, frame))
         }
+        if (errored) break
       }
+
+      if (errored) return
 
       // Flush any final bytes + a trailing frame not terminated by a blank line.
       buffer += decoder.decode()
       if (buffer.trim().length > 0) {
+        const err = frameError(buffer)
+        if (err) {
+          const text = difyErrorText(err)
+          updateAi((msg) => ({ ...msg, text }))
+          setStatus('error')
+          return
+        }
         updateAi((msg) => reduceFrame(msg, buffer))
       }
 

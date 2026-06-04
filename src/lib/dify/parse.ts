@@ -12,6 +12,8 @@ export type DifyParsed = {
   answerDelta?: string
   sources?: BrainSource[]
   conversationId?: string
+  /** Set when Dify streams an `error` event (model failure, quota, etc.). */
+  error?: string
 }
 
 /**
@@ -67,6 +69,10 @@ export function parseDifyEvent(line: string): DifyParsed {
         result.conversationId = obj.conversation_id
       }
       return result
+    }
+    case 'error': {
+      const message = typeof obj.message === 'string' ? obj.message : 'error'
+      return { error: message }
     }
     default:
       return {}
