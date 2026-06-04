@@ -39,6 +39,13 @@ services:
       BOOTSTRAP_ADMIN_FIRSTNAME: ${BOOTSTRAP_ADMIN_FIRSTNAME:-Admin}
       HOSTNAME: 0.0.0.0
       NODE_ENV: production
+      # Répertoire des PDF uploadés (monté sur le volume persistant ci-dessous).
+      UPLOADS_DIR: ${UPLOADS_DIR:-/app/uploads}
+    volumes:
+      # PDF des formations — survit aux redéploiements (uid 1001 propriétaire,
+      # voir Dockerfile : le dir /app/uploads est chown nextjs:nodejs avant le
+      # premier montage du volume, qui en hérite l'ownership).
+      - cockpit_uploads:/app/uploads
     networks:
       - internal
       - dokploy-network
@@ -62,3 +69,4 @@ networks:
 
 volumes:
   cockpit_pgdata:
+  cockpit_uploads:

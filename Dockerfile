@@ -48,6 +48,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres ./node_modules/postgres
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/drizzle-orm ./node_modules/drizzle-orm
 
+# Répertoire des PDF uploadés. Créé et possédé par nextjs:nodejs AVANT `USER
+# nextjs` : un volume nommé vierge hérite de l'ownership du point de montage à
+# son premier montage → écrivable par l'uid 1001.
+RUN mkdir -p /app/uploads && chown nextjs:nodejs /app/uploads
+
 USER nextjs
 EXPOSE 3000
 
