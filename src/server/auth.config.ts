@@ -10,6 +10,12 @@ import type { NextAuthConfig } from 'next-auth'
  * argon2 verify) is added in `auth.ts`, which only runs on Node.
  */
 export const authConfig = {
+  // Behind a reverse proxy (Traefik/Dokploy), Auth.js must trust the forwarded
+  // host or it throws UntrustedHost. This config is shared by BOTH the Node
+  // instance (auth.ts) AND the Edge middleware, so trustHost must live HERE —
+  // setting it only in auth.ts left the middleware rejecting the host, which
+  // broke the session and caused a / ↔ /connexion redirect loop.
+  trustHost: true,
   pages: {
     signIn: '/connexion',
   },
