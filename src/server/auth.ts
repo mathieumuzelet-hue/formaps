@@ -8,6 +8,13 @@ import { db } from './db'
 import { users } from './db/schema'
 import { verifyPassword } from './auth/password'
 
+// Fail loud at import time (Node runtime only) if the signing secret is absent,
+// mirroring how `db/index.ts` throws on a missing DATABASE_URL. The Edge
+// middleware imports `auth.config.ts`, not this module, so it stays unaffected.
+if (!process.env.AUTH_SECRET) {
+  throw new Error('AUTH_SECRET manquant — requis pour Auth.js')
+}
+
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),

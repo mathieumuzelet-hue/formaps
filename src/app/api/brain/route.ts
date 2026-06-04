@@ -59,11 +59,15 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // Relay the SSE stream untouched, while inspecting chunks to capture the
-  // `conversation_id` Dify assigns. We do NOT buffer the response: each chunk
-  // is enqueued unchanged immediately after a cheap inspection.
+  // `conversation_id` Dify assigns. We do NOT buffer the *response*: each chunk
+  // is enqueued unchanged immediately. We DO keep a small text buffer for the
+  // inspection side, so a `data:` frame split across two network chunks still
+  // parses (mirrors the client hook's frame buffering).
   const decoder = new TextDecoder()
   const hadConversationId = conversationId != null
   let captured = false
+  // Leftover incomplete SSE segment carried over to the next chunk.
+  let buffer = ''
 
   const inspector = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
@@ -72,8 +76,14 @@ export async function POST(request: Request): Promise<Response> {
 
       if (hadConversationId || captured) return
       try {
-        const text = decoder.decode(chunk, { stream: true })
-        for (const payload of parseSSELines(text)) {
+        buffer += decoder.decode(chunk, { stream: true })
+        // Only parse up to the last frame delimiter; keep the incomplete tail.
+        const lastDelimiter = buffer.lastIndexOf('\n\n')
+        if (lastDelimiter === -1) return
+        const complete = buffer.slice(0, lastDelimiter)
+        buffer = buffer.slice(lastDelimiter + 2)
+
+        for (const payload of parseSSELines(complete)) {
           const parsed = parseDifyEvent(payload)
           if (parsed.conversationId) {
             captured = true

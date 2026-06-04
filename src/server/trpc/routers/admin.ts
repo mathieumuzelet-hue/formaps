@@ -89,7 +89,12 @@ const formationsRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.delete(formations).where(eq(formations.id, input.id))
+      const [row] = await ctx.db
+        .delete(formations)
+        .where(eq(formations.id, input.id))
+        .returning()
+
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Formation introuvable' })
       return { id: input.id }
     }),
 })

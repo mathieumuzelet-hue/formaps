@@ -14,6 +14,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # evaluates server modules while collecting page data. Provide a placeholder so
 # the module loads — pages are dynamic (auth/tRPC) and do not query at build.
 ENV DATABASE_URL=postgres://build:build@localhost:5432/build
+# auth.ts throws at import time if AUTH_SECRET is unset, and `next build`
+# evaluates server modules. Placeholder only — the real secret is set at runtime.
+ENV AUTH_SECRET=build-placeholder-secret
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
