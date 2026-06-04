@@ -15,7 +15,34 @@ function addDays(base: Date, days: number): string {
   return d.toISOString().slice(0, 10) // YYYY-MM-DD
 }
 
+/**
+ * Fail-closed guard: this seed performs destructive deletes and creates a
+ * default admin. It must NEVER run against a production database by accident.
+ * Refuse unless the DB clearly looks like a dev/test target, or the operator
+ * explicitly opts in with ALLOW_DESTRUCTIVE_SEED=yes-i-am-sure.
+ */
+function assertSafeToSeed() {
+  const url = process.env.DATABASE_URL ?? ''
+  const override = process.env.ALLOW_DESTRUCTIVE_SEED === 'yes-i-am-sure'
+  const looksDev = /localhost|127\.0\.0\.1|::1|\bdev\b|\btest\b/i.test(url)
+  if (process.env.NODE_ENV === 'production' && !override) {
+    throw new Error('Refus du seed : NODE_ENV=production (poser ALLOW_DESTRUCTIVE_SEED=yes-i-am-sure pour forcer).')
+  }
+  if (!looksDev && !override) {
+    throw new Error(
+      "Refus du seed : DATABASE_URL ne ressemble pas à une base dev/test. " +
+        'Poser ALLOW_DESTRUCTIVE_SEED=yes-i-am-sure pour forcer.',
+    )
+  }
+}
+
 async function main() {
+  assertSafeToSeed()
+
+  // Mots de passe de seed : surchargeable par env, fallback dev uniquement.
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'admin1234'
+  const camillePassword = process.env.SEED_CAMILLE_PASSWORD ?? 'camille1234'
+
   // Idempotent: clear in FK-safe order, then re-insert.
   await db.delete(userFormationProgress)
   await db.delete(formationDocuments)
@@ -125,8 +152,8 @@ async function main() {
   const formationBySlug = new Map(insertedFormations.map((f) => [f.slug, f]))
 
   // 2 users (argon2id hashed passwords)
-  const adminHash = await argon2.hash('admin1234', { type: argon2.argon2id })
-  const camilleHash = await argon2.hash('camille1234', { type: argon2.argon2id })
+  const adminHash = await argon2.hash(adminPassword, { type: argon2.argon2id })
+  const camilleHash = await argon2.hash(camillePassword, { type: argon2.argon2id })
 
   const insertedUsers = await db
     .insert(users)
