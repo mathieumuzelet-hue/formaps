@@ -2,15 +2,17 @@ import { router } from './trpc'
 import { storeRouter } from './routers/store'
 import { formationRouter } from './routers/formation'
 import { progressRouter } from './routers/progress'
+import { adminRouter } from './routers/admin'
 
 /**
- * Root tRPC router. Admin + BRAIN routers join in later milestones (M7/M8) —
- * add them as additional keys here when they land.
+ * Root tRPC router. The `admin` router (M8) is admin-only at the procedure
+ * level (`adminProcedure`).
  */
 export const appRouter = router({
   store: storeRouter,
   formation: formationRouter,
   progress: progressRouter,
+  admin: adminRouter,
 })
 
 export type AppRouter = typeof appRouter
