@@ -52,8 +52,9 @@ describe('reduceFrame', () => {
     const afterMsg = reduceFrame(start, MESSAGE_FRAME.trimEnd())
     expect(afterMsg.text).toBe('Bonjour')
     const afterEnd = reduceFrame(afterMsg, END_FRAME.trimEnd())
+    // `position` is the retrieval rank, not a page → no page key is faked.
     expect(afterEnd.sources).toEqual([
-      { doc: 'Guide.pdf', page: 'p. 14', tag: 'Encaissement' },
+      { doc: 'Guide.pdf', tag: 'Encaissement' },
     ])
   })
 })
@@ -81,7 +82,6 @@ describe('useBrainChat', () => {
     })
     expect(result.current.messages[1].sources?.[0]).toEqual({
       doc: 'Guide.pdf',
-      page: 'p. 14',
       tag: 'Encaissement',
     })
   })

@@ -6,7 +6,10 @@
  * bundled into a client component.
  */
 
-export type BrainSource = { doc: string; tag?: string; page?: string }
+export type BrainSource = { doc: string; tag?: string; page?: string; content?: string }
+
+/** Max length of a cited passage carried to the UI before truncation. */
+const MAX_CONTENT_LEN = 600
 
 export type DifyParsed = {
   answerDelta?: string
@@ -23,13 +26,35 @@ export type DifyParsed = {
 export function mapSources(resources: Array<Record<string, unknown>>): BrainSource[] {
   return resources.map((r) => {
     const doc = typeof r.document_name === 'string' ? r.document_name : 'Document'
-    const position = r.position
-    const page = position != null ? `p. ${position}` : undefined
+
     const rawTag = r.dataset_name ?? r.tag
     const tag = typeof rawTag === 'string' ? rawTag : undefined
+
+    // Only carry a real page: Dify's `page` is often null, and `position` is the
+    // retrieval rank, NOT a page number — never derive a page label from it.
+    let page: string | undefined
+    if (typeof r.page === 'string' && r.page.trim().length > 0) {
+      page = r.page.trim()
+    } else if (typeof r.page === 'number' && Number.isFinite(r.page)) {
+      page = String(r.page)
+    }
+
+    // Carry the cited passage, trimmed and truncated for the expandable UI.
+    let content: string | undefined
+    if (typeof r.content === 'string') {
+      const trimmed = r.content.trim()
+      if (trimmed.length > 0) {
+        content =
+          trimmed.length > MAX_CONTENT_LEN
+            ? trimmed.slice(0, MAX_CONTENT_LEN) + '…'
+            : trimmed
+      }
+    }
+
     const source: BrainSource = { doc }
     if (page !== undefined) source.page = page
     if (tag !== undefined) source.tag = tag
+    if (content !== undefined) source.content = content
     return source
   })
 }
