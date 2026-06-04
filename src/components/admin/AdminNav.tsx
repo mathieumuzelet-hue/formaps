@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/Icon'
 const NAV_ITEMS: ReadonlyArray<readonly [href: string, label: string, icon: string]> = [
   ['/admin/magasins', 'Magasins', 'pin'],
   ['/admin/formations', 'Formations', 'book'],
+  ['/admin/actualites', 'Actualités', 'bell'],
   ['/admin/utilisateurs', 'Utilisateurs', 'user'],
 ]
 
