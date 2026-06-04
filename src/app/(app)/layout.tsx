@@ -20,7 +20,7 @@ export default async function AppLayout({
   return (
     <>
       <div className="hidden md:block">
-        <BNav firstName={session.user.firstName} />
+        <BNav firstName={session.user.firstName} role={session.user.role} />
       </div>
       <MobileBrandBar />
       <main className="flex-1 pb-24 md:pb-0">

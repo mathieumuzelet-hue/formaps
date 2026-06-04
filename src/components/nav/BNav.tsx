@@ -25,9 +25,10 @@ function isActive(pathname: string, href: string): boolean {
 
 export type BNavProps = {
   firstName: string
+  role: 'employee' | 'admin'
 }
 
-export function BNav({ firstName }: BNavProps) {
+export function BNav({ firstName, role }: BNavProps) {
   const pathname = usePathname()
 
   return (
@@ -59,6 +60,21 @@ export function BNav({ firstName }: BNavProps) {
             </Link>
           )
         })}
+        {role === 'admin' && (
+          <Link
+            href="/admin/magasins"
+            className={`relative pb-[3px] text-[14.5px] ${
+              pathname.startsWith('/admin')
+                ? 'font-bold text-ink'
+                : 'font-medium text-sub'
+            }`}
+          >
+            Admin
+            {pathname.startsWith('/admin') && (
+              <span className="absolute -bottom-[21px] left-0 right-0 h-[2.5px] bg-red" />
+            )}
+          </Link>
+        )}
       </nav>
 
       <div className="ml-auto flex items-center gap-[18px]">
