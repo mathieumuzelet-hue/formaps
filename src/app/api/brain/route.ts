@@ -47,12 +47,38 @@ export async function POST(request: Request): Promise<Response> {
     conversationId = null
   }
 
+  const callDify = (convId: string | null) =>
+    streamChat({ query, user: userId, conversationId: convId })
+
   let upstream: Response
   try {
-    upstream = await streamChat({ query, user: userId, conversationId })
+    upstream = await callDify(conversationId)
   } catch (err) {
     console.error('[brain] Dify fetch a échoué (réseau/URL ?):', err)
     return json({ error: 'dify_unavailable' }, 502)
+  }
+
+  // Auto-heal: Dify snapshots the model config per conversation, so a 400 on an
+  // EXISTING conversation usually means that conversation is pinned to a now-
+  // disabled model (e.g. after changing the model in Dify). Clear the stored
+  // conversation id and retry ONCE with a fresh conversation, so the user is
+  // never stuck after a model change.
+  if (!upstream.ok && upstream.status === 400 && conversationId) {
+    console.warn('[brain] 400 sur conversation existante → reset conversation + retry')
+    try {
+      await Promise.resolve(
+        db.update(users).set({ difyConversationId: null }).where(eq(users.id, userId)),
+      )
+    } catch {
+      // Non-fatal: the retry below starts a new conversation regardless.
+    }
+    conversationId = null
+    try {
+      upstream = await callDify(null)
+    } catch (err) {
+      console.error('[brain] Dify retry a échoué:', err)
+      return json({ error: 'dify_unavailable' }, 502)
+    }
   }
 
   if (!upstream.ok || !upstream.body) {

@@ -87,6 +87,32 @@ test('upstream non-ok → 502', async () => {
   expect(await res.json()).toEqual({ error: 'dify_unavailable', status: 500 })
 })
 
+test('auto-heal: 400 sur conversation existante → reset + retry → 200', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // L'utilisateur a une conversation périmée stockée.
+  selectLimit.mockResolvedValue([{ difyConversationId: 'old-cv' }])
+
+  const sse = 'data: {"event":"message","answer":"ok","conversation_id":"new-cv"}\n\n'
+  const freshBody = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(sse))
+      controller.close()
+    },
+  })
+  // 1er appel (avec old-cv) → 400 ; 2e appel (sans conversation) → 200.
+  streamChat
+    .mockResolvedValueOnce(new Response('bad', { status: 400 }))
+    .mockResolvedValueOnce(new Response(freshBody, { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'salut' }))
+
+  expect(res.status).toBe(200)
+  // La conversation périmée a été réinitialisée à null.
+  expect(updateSet).toHaveBeenCalledWith({ difyConversationId: null })
+  // streamChat rappelé une 2e fois.
+  expect(streamChat).toHaveBeenCalledTimes(2)
+})
+
 test('streamChat throw → 502', async () => {
   auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
   streamChat.mockRejectedValue(new Error('network'))
