@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import { trpc } from '@/lib/trpc/client'
 import { stepOptions } from '@/lib/admin/store-step-options'
+import { CsvImportCard } from '@/components/admin/CsvImportCard'
 
 type Store = {
   id: string
@@ -47,6 +48,7 @@ export function MagasinsAdmin() {
   return (
     <div className="mt-6 space-y-6">
       <StoreCreateForm />
+      <CsvImportCard kind="stores" />
       <div className="overflow-hidden rounded-[14px] border border-line bg-card">
       <table className="w-full border-collapse">
         <thead>

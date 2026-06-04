@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 import { trpc } from '@/lib/trpc/client'
+import { CsvImportCard } from '@/components/admin/CsvImportCard'
 
 type User = {
   id: string
@@ -54,6 +55,8 @@ export function UtilisateursAdmin() {
           </button>
         )}
       </div>
+
+      <CsvImportCard kind="users" />
 
       <div className="overflow-hidden rounded-[14px] border border-line bg-card">
         <table className="w-full border-collapse">
