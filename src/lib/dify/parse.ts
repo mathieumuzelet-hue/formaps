@@ -15,6 +15,10 @@ export type DifyParsed = {
   answerDelta?: string
   sources?: BrainSource[]
   conversationId?: string
+  /** Dify message id (`id` of message_end) — keys the feedback round-trip. */
+  messageId?: string
+  /** Numeric `score` of each retriever resource (non-numeric entries dropped). */
+  scores?: number[]
   /** Set when Dify streams an `error` event (model failure, quota, etc.). */
   error?: string
 }
@@ -89,9 +93,17 @@ export function parseDifyEvent(line: string): DifyParsed {
       const resources = Array.isArray(metadata.retriever_resources)
         ? (metadata.retriever_resources as Array<Record<string, unknown>>)
         : []
-      const result: DifyParsed = { sources: mapSources(resources) }
+      const result: DifyParsed = {
+        sources: mapSources(resources),
+        scores: resources
+          .map((r) => r.score)
+          .filter((s): s is number => typeof s === 'number' && Number.isFinite(s)),
+      }
       if (typeof obj.conversation_id === 'string') {
         result.conversationId = obj.conversation_id
+      }
+      if (typeof obj.id === 'string') {
+        result.messageId = obj.id
       }
       return result
     }

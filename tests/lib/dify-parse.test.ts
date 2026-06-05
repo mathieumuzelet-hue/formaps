@@ -63,3 +63,40 @@ test('parseSSELines extrait les payloads data:', () => {
   const chunk = 'data: {"event":"message","answer":"a"}\n\ndata: {"event":"message","answer":"b"}\n\n'
   expect(parseSSELines(chunk)).toEqual(['{"event":"message","answer":"a"}', '{"event":"message","answer":"b"}'])
 })
+
+test('message_end expose messageId et les scores des sources', () => {
+  const parsed = parseDifyEvent(
+    JSON.stringify({
+      event: 'message_end',
+      id: 'msg-42',
+      conversation_id: 'cv-1',
+      metadata: {
+        retriever_resources: [
+          { document_name: 'a.pdf', score: 0.82 },
+          { document_name: 'b.pdf', score: 0.31 },
+        ],
+      },
+    }),
+  )
+  expect(parsed.messageId).toBe('msg-42')
+  expect(parsed.scores).toEqual([0.82, 0.31])
+})
+
+test('message_end sans sources → scores vide, messageId absent si id manquant', () => {
+  const parsed = parseDifyEvent(
+    JSON.stringify({ event: 'message_end', conversation_id: 'cv-1', metadata: {} }),
+  )
+  expect(parsed.scores).toEqual([])
+  expect(parsed.messageId).toBeUndefined()
+})
+
+test('message_end ignore les scores non numériques', () => {
+  const parsed = parseDifyEvent(
+    JSON.stringify({
+      event: 'message_end',
+      id: 'msg-1',
+      metadata: { retriever_resources: [{ score: 'high' }, { score: 0.6 }, {}] },
+    }),
+  )
+  expect(parsed.scores).toEqual([0.6])
+})
