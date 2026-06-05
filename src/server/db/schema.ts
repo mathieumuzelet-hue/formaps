@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, date, timestamp, boolean, pgEnum, unique } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, integer, date, timestamp, boolean, pgEnum, unique, real, index } from 'drizzle-orm/pg-core'
 
 export const roleEnum = pgEnum('role', ['employee', 'admin'])
 export const kindEnum = pgEnum('formation_kind', ['sharepoint', 'pdf'])
@@ -72,6 +72,29 @@ export const news = pgTable('news', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+/**
+ * One row per BRAIN question/answer, with Dify retrieval metadata and user
+ * feedback. Feeds the /admin/faq-gaps view. Inserted fire-and-forget by
+ * /api/brain — never blocks the chat response.
+ */
+export const chatQueries = pgTable('chat_queries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  query: text('query').notNull(),
+  answer: text('answer').notNull(),
+  conversationId: text('conversation_id').notNull(),
+  messageId: text('message_id').notNull().unique(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  retrievalScoreMax: real('retrieval_score_max'),
+  retrievalCount: integer('retrieval_count').notNull(),
+  hasRelevantSource: boolean('has_relevant_source').notNull(),
+  feedback: text('feedback'), // 'like' | 'dislike' | null
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => ({
+  createdAtIdx: index('chat_queries_created_at_idx').on(t.createdAt),
+  hasRelevantSourceIdx: index('chat_queries_has_relevant_source_idx').on(t.hasRelevantSource),
+  feedbackIdx: index('chat_queries_feedback_idx').on(t.feedback),
+}))
 
 export const brainSuggestions = pgTable('brain_suggestions', {
   id: uuid('id').primaryKey().defaultRandom(),
