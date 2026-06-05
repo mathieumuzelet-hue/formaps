@@ -14,19 +14,19 @@ import { useBrainChat, type BrainMessage } from '@/lib/brain/useBrainChat'
  * plugin, so element styles are applied via arbitrary descendant selectors).
  */
 const MARKDOWN_CLASSES = [
-  'font-serif text-[14.5px] leading-[1.65] text-ink',
+  'font-serif text-[12px] leading-[1.65] text-ink',
   '[&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
   '[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5',
   '[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5',
   '[&_li]:my-1',
   '[&_strong]:font-semibold',
   '[&_em]:italic',
-  '[&_h1]:font-serif [&_h1]:text-lg [&_h1]:font-medium [&_h1]:mt-3 [&_h1]:mb-1',
-  '[&_h2]:font-serif [&_h2]:text-base [&_h2]:font-medium [&_h2]:mt-3 [&_h2]:mb-1',
-  '[&_h3]:font-serif [&_h3]:text-[15px] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1',
+  '[&_h1]:font-serif [&_h1]:text-[15px] [&_h1]:font-medium [&_h1]:mt-3 [&_h1]:mb-1',
+  '[&_h2]:font-serif [&_h2]:text-[14px] [&_h2]:font-medium [&_h2]:mt-3 [&_h2]:mb-1',
+  '[&_h3]:font-serif [&_h3]:text-[13px] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1',
   '[&_a]:text-redink [&_a]:underline',
   '[&_blockquote]:border-l-2 [&_blockquote]:border-line [&_blockquote]:pl-3 [&_blockquote]:text-sub [&_blockquote]:italic',
-  '[&_code]:bg-surface [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[13px]',
+  '[&_code]:bg-surface [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px]',
   '[&_pre]:bg-surface [&_pre]:p-3 [&_pre]:rounded-[10px] [&_pre]:overflow-x-auto [&_pre]:my-2',
   '[&_pre_code]:bg-transparent [&_pre_code]:p-0',
   '[&_table]:w-full [&_table]:my-2 [&_table]:border-collapse',
@@ -156,7 +156,7 @@ export function BrainChat({
               message.role === 'user' ? (
                 <div
                   key={j}
-                  className="max-w-[70%] self-end rounded-[18px_18px_5px_18px] bg-ink px-[18px] py-[13px] text-[14.5px] leading-[1.5] text-white"
+                  className="max-w-[70%] self-end rounded-[18px_18px_5px_18px] bg-ink px-[16px] py-[11px] text-[12px] leading-[1.5] text-white"
                 >
                   {message.text}
                 </div>
@@ -165,9 +165,19 @@ export function BrainChat({
               ),
             )}
             {thinking && i === all.length - 1 && (
-              <div className="self-start font-serif text-[14.5px] italic text-faint">
-                BRAIN réfléchit
-                <span className="ml-0.5 inline-block animate-pulse">…</span>
+              <div
+                data-testid="brain-thinking"
+                role="status"
+                aria-label="BRAIN réfléchit"
+                className="flex h-[34px] w-[34px] animate-pulse items-center justify-center self-start rounded-full bg-red"
+              >
+                <Icon
+                  name="brain"
+                  size={19}
+                  color="#fff"
+                  strokeWidth={1.8}
+                  className="animate-[wiggle_1.2s_ease-in-out_infinite]"
+                />
               </div>
             )}
           </div>

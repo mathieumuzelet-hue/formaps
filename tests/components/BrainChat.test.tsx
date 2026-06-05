@@ -32,7 +32,7 @@ test('chaque paire question/réponse est rendue dans sa propre carte', () => {
   expect(within(cards[1]).getByText('r2')).toBeInTheDocument()
 })
 
-test("l'indicateur « BRAIN réfléchit » apparaît dans la carte de la question en cours", () => {
+test("l'indicateur cerveau animé apparaît dans la carte de la question en cours", () => {
   mockChat(
     [
       { role: 'user', text: 'q1' },
@@ -45,7 +45,21 @@ test("l'indicateur « BRAIN réfléchit » apparaît dans la carte de la questio
 
   const cards = screen.getAllByTestId('brain-exchange')
   expect(cards).toHaveLength(1)
-  expect(within(cards[0]).getByText(/BRAIN réfléchit/)).toBeInTheDocument()
+  const indicator = within(cards[0]).getByTestId('brain-thinking')
+  expect(indicator).toBeInTheDocument()
+  // Accessible : l'animation reste annoncée comme « BRAIN réfléchit ».
+  expect(indicator).toHaveAttribute('aria-label', 'BRAIN réfléchit')
+})
+
+test("pas d'indicateur quand le streaming est terminé", () => {
+  mockChat([
+    { role: 'user', text: 'q1' },
+    { role: 'ai', text: 'r1' },
+  ])
+
+  render(<BrainChat suggestions={[]} />)
+
+  expect(screen.queryByTestId('brain-thinking')).not.toBeInTheDocument()
 })
 
 test('aucune carte quand il n’y a pas encore de message', () => {

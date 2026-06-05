@@ -38,8 +38,23 @@ body {
   animation: route-fade 0.26s ease;
 }
 
+/* Gentle tilt used by the BRAIN thinking indicator (animate-[wiggle_…]). */
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .route-transition {
+    animation: none;
+  }
+
+  [class*="animate-"] {
     animation: none;
   }
 }
