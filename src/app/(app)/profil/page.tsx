@@ -1,4 +1,7 @@
+import Link from 'next/link'
+
 import { auth } from '@/server/auth'
+import { Icon } from '@/components/ui/Icon'
 import { LogoutButton } from '@/components/nav/LogoutButton'
 
 export default async function ProfilPage() {
@@ -14,9 +17,16 @@ export default async function ProfilPage() {
         Bonjour {firstName}.
       </h1>
       <p className="mt-4 max-w-[420px] text-[15.5px] leading-[1.6] text-sub">
-        Profil — bientôt. La gestion de votre compte arrivera prochainement.
+        Gérez votre compte Cockpit.
       </p>
-      <div className="mt-8">
+      <div className="mt-8 flex flex-col items-start gap-4">
+        <Link
+          href="/compte/mot-de-passe"
+          className="inline-flex items-center gap-2 rounded-[10px] border border-line bg-card px-[18px] py-[13px] text-[14px] font-bold text-ink"
+        >
+          <Icon name="settings" size={18} color="#8A7F6E" />
+          Changer mon mot de passe
+        </Link>
         <LogoutButton />
       </div>
     </div>
