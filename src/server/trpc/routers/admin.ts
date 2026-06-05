@@ -33,6 +33,7 @@ import {
   userCreateSchema,
   userUpdateSchema,
 } from '@/lib/admin/schemas'
+import { faqGapsRouter } from './admin-faq-gaps'
 import { adminProcedure, router } from '../trpc'
 
 // Re-export so existing imports of the schema from the router keep working.
@@ -476,4 +477,5 @@ export const adminRouter = router({
   users: usersRouter,
   news: newsRouter,
   brainSuggestions: brainSuggestionsRouter,
+  faqGaps: faqGapsRouter,
 })
