@@ -108,7 +108,11 @@ function AiMessage({ message }: { message: BrainMessage }) {
   )
 }
 
-export function BrainChat() {
+export function BrainChat({
+  suggestions = BRAIN_SUGGESTIONS,
+}: {
+  suggestions?: string[]
+}) {
   const { messages, status, send } = useBrainChat()
   const [draft, setDraft] = useState('')
 
@@ -165,7 +169,7 @@ export function BrainChat() {
       <div className="pb-[18px]">
         <div className="mb-[9px] text-[12px] font-bold text-faint">SUGGESTIONS</div>
         <div className="mb-4 flex flex-wrap gap-[9px]">
-          {BRAIN_SUGGESTIONS.map((q) => (
+          {suggestions.map((q) => (
             <button
               key={q}
               type="button"
