@@ -7,6 +7,14 @@ const { useBrainChat } = vi.hoisted(() => ({ useBrainChat: vi.fn() }))
 
 vi.mock('@/lib/brain/useBrainChat', () => ({ useBrainChat: () => useBrainChat() }))
 
+vi.mock('@/lib/trpc/client', () => ({
+  trpc: {
+    brain: {
+      feedback: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+    },
+  },
+}))
+
 import { BrainChat } from '@/components/brain/BrainChat'
 
 function mockChat(messages: BrainMessage[], status = 'idle') {
@@ -66,4 +74,17 @@ test('aucune carte quand il n’y a pas encore de message', () => {
   mockChat([])
   render(<BrainChat suggestions={[]} />)
   expect(screen.queryByTestId('brain-exchange')).not.toBeInTheDocument()
+})
+
+test('les boutons feedback ne sont rendus que pour les réponses avec messageId', () => {
+  mockChat([
+    { role: 'user', text: 'q1' },
+    { role: 'ai', text: 'r1', messageId: 'msg-7' },
+    { role: 'user', text: 'q2' },
+    { role: 'ai', text: 'r2' }, // pas de messageId (stream interrompu)
+  ])
+
+  render(<BrainChat suggestions={[]} />)
+
+  expect(screen.getAllByRole('button', { name: /réponse utile/i })).toHaveLength(1)
 })

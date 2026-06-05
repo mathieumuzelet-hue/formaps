@@ -34,6 +34,8 @@ import {
   LayoutGrid,
   Home,
   Quote,
+  ThumbsUp,
+  ThumbsDown,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -73,6 +75,8 @@ const ICONS: Record<string, LucideIcon> = {
   grid: LayoutGrid,
   home: Home,
   quote: Quote,
+  thumbsUp: ThumbsUp,
+  thumbsDown: ThumbsDown,
 }
 
 export type IconProps = {

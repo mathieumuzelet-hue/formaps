@@ -4,6 +4,7 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+import { FeedbackButtons } from '@/components/brain/FeedbackButtons'
 import { Icon } from '@/components/ui/Icon'
 import { groupExchanges } from '@/lib/brain/exchanges'
 import { BRAIN_SUGGESTIONS } from '@/lib/brain/suggestions'
@@ -62,6 +63,7 @@ function AiMessage({ message }: { message: BrainMessage }) {
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
         <SuperscriptRefs count={sources.length} />
       </div>
+      {message.messageId && <FeedbackButtons messageId={message.messageId} />}
       {sources.length > 0 && (
         <div className="mt-[18px] border-t border-line pt-[14px]">
           <div className="mb-[10px] text-[11.5px] font-bold tracking-[0.06em] text-faint">
