@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { asc, desc, eq, like } from 'drizzle-orm'
+import { asc, desc, eq, like, max } from 'drizzle-orm'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
-import { formationDocuments, formations, news, stores, users } from '@/server/db/schema'
+import { brainSuggestions, formationDocuments, formations, news, stores, users } from '@/server/db/schema'
 import { slugify } from '@/lib/slug'
 import { sanitizeNewsHtml } from '@/server/news/sanitize'
 import { hashPassword } from '@/server/auth/password'
@@ -27,6 +27,9 @@ import {
   newsUpdateSchema,
   storeCreateSchema,
   storeUpdateSchema,
+  suggestionCreateSchema,
+  suggestionReorderSchema,
+  suggestionUpdateSchema,
   userCreateSchema,
   userUpdateSchema,
 } from '@/lib/admin/schemas'
@@ -388,9 +391,68 @@ const newsRouter = router({
     }),
 })
 
+const brainSuggestionsRouter = router({
+  /** All suggestions (active or not), ordered for the admin list. */
+  list: adminProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(brainSuggestions)
+      .orderBy(asc(brainSuggestions.sortOrder), asc(brainSuggestions.createdAt))
+  }),
+
+  /** Create at the end of the list (sortOrder = max + 1). */
+  create: adminProcedure.input(suggestionCreateSchema).mutation(async ({ ctx, input }) => {
+    const [{ value: maxOrder }] = await ctx.db
+      .select({ value: max(brainSuggestions.sortOrder) })
+      .from(brainSuggestions)
+    const [row] = await ctx.db
+      .insert(brainSuggestions)
+      .values({ text: input.text, sortOrder: (maxOrder ?? -1) + 1 })
+      .returning()
+    return row
+  }),
+
+  update: adminProcedure.input(suggestionUpdateSchema).mutation(async ({ ctx, input }) => {
+    const { id, ...fields } = input
+    const [row] = await ctx.db
+      .update(brainSuggestions)
+      .set({ ...fields, updatedAt: new Date() })
+      .where(eq(brainSuggestions.id, id))
+      .returning()
+    if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Suggestion introuvable' })
+    return row
+  }),
+
+  delete: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .delete(brainSuggestions)
+        .where(eq(brainSuggestions.id, input.id))
+        .returning()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Suggestion introuvable' })
+      return { id: input.id }
+    }),
+
+  /** Persist a full ordering: sortOrder = index in the given id list. */
+  reorder: adminProcedure.input(suggestionReorderSchema).mutation(async ({ ctx, input }) => {
+    const now = new Date()
+    await ctx.db.transaction(async (tx) => {
+      for (const [i, id] of input.ids.entries()) {
+        await tx
+          .update(brainSuggestions)
+          .set({ sortOrder: i, updatedAt: now })
+          .where(eq(brainSuggestions.id, id))
+      }
+    })
+    return { ok: true }
+  }),
+})
+
 export const adminRouter = router({
   stores: storesRouter,
   formations: formationsRouter,
   users: usersRouter,
   news: newsRouter,
+  brainSuggestions: brainSuggestionsRouter,
 })
