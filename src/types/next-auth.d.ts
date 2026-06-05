@@ -11,6 +11,8 @@ declare module 'next-auth' {
     role: Role
     storeId: string | null
     firstName: string
+    /** Epoch ms of the last password change — copied onto the JWT at sign-in. */
+    passwordChangedAt: number
   }
 
   /** The session object exposed to server components and middleware. */
@@ -32,5 +34,7 @@ declare module '@auth/core/jwt' {
     role: Role
     storeId: string | null
     firstName: string
+    /** Optional — tokens issued before this deployment lack it. */
+    passwordChangedAt?: number
   }
 }

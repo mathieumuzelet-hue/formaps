@@ -32,6 +32,7 @@ export const authConfig = {
         token.role = user.role
         token.storeId = user.storeId
         token.firstName = user.firstName
+        token.passwordChangedAt = user.passwordChangedAt
       }
       return token
     },
