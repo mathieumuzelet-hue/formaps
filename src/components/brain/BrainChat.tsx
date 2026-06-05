@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 import { Icon } from '@/components/ui/Icon'
+import { groupExchanges } from '@/lib/brain/exchanges'
 import { BRAIN_SUGGESTIONS } from '@/lib/brain/suggestions'
 import { useBrainChat, type BrainMessage } from '@/lib/brain/useBrainChat'
 
@@ -13,19 +14,19 @@ import { useBrainChat, type BrainMessage } from '@/lib/brain/useBrainChat'
  * plugin, so element styles are applied via arbitrary descendant selectors).
  */
 const MARKDOWN_CLASSES = [
-  'font-serif text-[16.5px] leading-[1.7] text-ink',
+  'font-serif text-[14.5px] leading-[1.65] text-ink',
   '[&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
   '[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5',
   '[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5',
   '[&_li]:my-1',
   '[&_strong]:font-semibold',
   '[&_em]:italic',
-  '[&_h1]:font-serif [&_h1]:text-xl [&_h1]:font-medium [&_h1]:mt-3 [&_h1]:mb-1',
-  '[&_h2]:font-serif [&_h2]:text-lg [&_h2]:font-medium [&_h2]:mt-3 [&_h2]:mb-1',
-  '[&_h3]:font-serif [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1',
+  '[&_h1]:font-serif [&_h1]:text-lg [&_h1]:font-medium [&_h1]:mt-3 [&_h1]:mb-1',
+  '[&_h2]:font-serif [&_h2]:text-base [&_h2]:font-medium [&_h2]:mt-3 [&_h2]:mb-1',
+  '[&_h3]:font-serif [&_h3]:text-[15px] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1',
   '[&_a]:text-redink [&_a]:underline',
   '[&_blockquote]:border-l-2 [&_blockquote]:border-line [&_blockquote]:pl-3 [&_blockquote]:text-sub [&_blockquote]:italic',
-  '[&_code]:bg-surface [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[14px]',
+  '[&_code]:bg-surface [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[13px]',
   '[&_pre]:bg-surface [&_pre]:p-3 [&_pre]:rounded-[10px] [&_pre]:overflow-x-auto [&_pre]:my-2',
   '[&_pre_code]:bg-transparent [&_pre_code]:p-0',
   '[&_table]:w-full [&_table]:my-2 [&_table]:border-collapse',
@@ -143,26 +144,34 @@ export function BrainChat({
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex flex-1 flex-col gap-5">
-        {messages.map((message, i) =>
-          message.role === 'user' ? (
-            <div
-              key={i}
-              className="max-w-[70%] self-end rounded-[18px_18px_5px_18px] bg-ink px-[18px] py-[13px] text-[14.5px] leading-[1.5] text-white"
-            >
-              {message.text}
-            </div>
-          ) : (
-            <AiMessage key={i} message={message} />
-          ),
-        )}
-        {thinking && (
-          <div className="self-start font-serif text-[16.5px] italic text-faint">
-            BRAIN réfléchit
-            <span className="ml-0.5 inline-block animate-pulse">…</span>
+      {/* Messages — one bordered card per question/answer exchange. */}
+      <div className="flex flex-1 flex-col gap-4">
+        {groupExchanges(messages).map((exchange, i, all) => (
+          <div
+            key={i}
+            data-testid="brain-exchange"
+            className="flex flex-col gap-4 rounded-[14px] border border-line bg-card p-[18px]"
+          >
+            {exchange.map((message, j) =>
+              message.role === 'user' ? (
+                <div
+                  key={j}
+                  className="max-w-[70%] self-end rounded-[18px_18px_5px_18px] bg-ink px-[18px] py-[13px] text-[14.5px] leading-[1.5] text-white"
+                >
+                  {message.text}
+                </div>
+              ) : (
+                <AiMessage key={j} message={message} />
+              ),
+            )}
+            {thinking && i === all.length - 1 && (
+              <div className="self-start font-serif text-[14.5px] italic text-faint">
+                BRAIN réfléchit
+                <span className="ml-0.5 inline-block animate-pulse">…</span>
+              </div>
+            )}
           </div>
-        )}
+        ))}
       </div>
 
       {/* Composer */}
