@@ -32,6 +32,7 @@ conteneur `web` (`node scripts/migrate.mjs && node server.js`). Si une migration
 | `BOOTSTRAP_ADMIN_EMAIL`     | (option) email de l'admin créé au boot                    |
 | `BOOTSTRAP_ADMIN_PASSWORD`  | (option) mot de passe de cet admin                        |
 | `BOOTSTRAP_ADMIN_FIRSTNAME` | (option) prénom affiché, défaut `Admin`                   |
+| `FAQ_RELEVANCE_THRESHOLD`   | Seuil de pertinence (0..1) du log FAQ BRAIN. Défaut `0.5` |
 
 `DATABASE_URL` est dérivée automatiquement des `POSTGRES_*` dans le compose
 (`postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}`).
@@ -48,6 +49,20 @@ crée (ou met à jour le mot de passe d') un compte **admin non rattaché à un 
 façon **idempotente** (rejoué à chaque boot). Laisser vide pour ne rien créer. Tant qu'aucun
 compte n'existe, c'est le seul moyen de se connecter (le seed de démo ne tourne pas en prod).
 Le mot de passe vit dans l'env Dokploy = source de vérité ; un redéploiement le réaligne.
+
+### Données & purge (RGPD)
+
+La table `chat_queries` enregistre les **questions posées au chat BRAIN** afin
+d'alimenter la page admin « Trous FAQ ». Ce texte libre peut contenir des
+**données personnelles** (saisie par un utilisateur identifiable).
+
+- **Durée de rétention cible : 12 mois maximum.**
+- La purge **n'est pas encore automatisée** — à exécuter manuellement (ou via un
+  cron à mettre en place) directement sur la base :
+
+```sql
+DELETE FROM chat_queries WHERE created_at < now() - interval '12 months';
+```
 
 ## 3. Domaine + réseau Traefik (points critiques)
 
