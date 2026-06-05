@@ -3,6 +3,7 @@ import { storeRouter } from './routers/store'
 import { formationRouter } from './routers/formation'
 import { progressRouter } from './routers/progress'
 import { adminRouter } from './routers/admin'
+import { accountRouter } from './routers/account'
 import { newsRouter } from './routers/news'
 import { brainRouter } from './routers/brain'
 
@@ -15,6 +16,7 @@ export const appRouter = router({
   formation: formationRouter,
   progress: progressRouter,
   admin: adminRouter,
+  account: accountRouter,
   news: newsRouter,
   brain: brainRouter,
 })
