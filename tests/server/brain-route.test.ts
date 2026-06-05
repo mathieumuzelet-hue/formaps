@@ -26,6 +26,9 @@ import { POST } from '@/app/api/brain/route'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // clearAllMocks ne purge PAS la queue mockResolvedValueOnce : un `once` non
+  // consommé par un test fuirait dans le suivant. Reset complet de streamChat.
+  streamChat.mockReset()
   selectLimit.mockResolvedValue([{ difyConversationId: null }])
 })
 
@@ -110,6 +113,64 @@ test('auto-heal: 400 sur conversation existante → reset + retry → 200', asyn
   // La conversation périmée a été réinitialisée à null.
   expect(updateSet).toHaveBeenCalledWith({ difyConversationId: null })
   // streamChat rappelé une 2e fois.
+  expect(streamChat).toHaveBeenCalledTimes(2)
+})
+
+test('auto-heal: 404 sur conversation existante (base Dify réinitialisée) → reset + retry → 200', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // L'utilisateur a une conversation qui n'existe plus côté Dify.
+  selectLimit.mockResolvedValue([{ difyConversationId: 'gone-cv' }])
+
+  const sse = 'data: {"event":"message","answer":"ok","conversation_id":"new-cv"}\n\n'
+  const freshBody = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(sse))
+      controller.close()
+    },
+  })
+  // 1er appel (avec gone-cv) → 404 Conversation Not Exists ; 2e appel → 200.
+  streamChat
+    .mockResolvedValueOnce(
+      new Response('{"code":"not_found","message":"Conversation Not Exists."}', { status: 404 }),
+    )
+    .mockResolvedValueOnce(new Response(freshBody, { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'salut' }))
+
+  expect(res.status).toBe(200)
+  // La conversation disparue a été réinitialisée à null.
+  expect(updateSet).toHaveBeenCalledWith({ difyConversationId: null })
+  // streamChat rappelé une 2e fois.
+  expect(streamChat).toHaveBeenCalledTimes(2)
+})
+
+test('404 SANS conversation stockée → 502 direct, aucun retry', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // Pas de conversation stockée : un 404 = vrai problème d'URL/config Dify.
+  selectLimit.mockResolvedValue([{ difyConversationId: null }])
+  streamChat.mockResolvedValue(new Response('not found', { status: 404 }))
+
+  const res = await POST(makeRequest({ query: 'salut' }))
+
+  expect(res.status).toBe(502)
+  expect(await res.json()).toEqual({ error: 'dify_unavailable', status: 404 })
+  // Aucun retry : un seul appel Dify.
+  expect(streamChat).toHaveBeenCalledTimes(1)
+})
+
+test('auto-heal: 404 aussi au retry → 502, pas de boucle', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  selectLimit.mockResolvedValue([{ difyConversationId: 'gone-cv' }])
+  // 404 au premier appel ET au retry sans conversation.
+  streamChat
+    .mockResolvedValueOnce(new Response('not found', { status: 404 }))
+    .mockResolvedValueOnce(new Response('not found', { status: 404 }))
+
+  const res = await POST(makeRequest({ query: 'salut' }))
+
+  expect(res.status).toBe(502)
+  expect(await res.json()).toEqual({ error: 'dify_unavailable', status: 404 })
+  // Exactement 2 appels : l'original + UN retry, jamais plus.
   expect(streamChat).toHaveBeenCalledTimes(2)
 })
 

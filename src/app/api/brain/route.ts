@@ -58,13 +58,19 @@ export async function POST(request: Request): Promise<Response> {
     return json({ error: 'dify_unavailable' }, 502)
   }
 
-  // Auto-heal: Dify snapshots the model config per conversation, so a 400 on an
-  // EXISTING conversation usually means that conversation is pinned to a now-
-  // disabled model (e.g. after changing the model in Dify). Clear the stored
-  // conversation id and retry ONCE with a fresh conversation, so the user is
-  // never stuck after a model change.
-  if (!upstream.ok && upstream.status === 400 && conversationId) {
-    console.warn('[brain] 400 sur conversation existante → reset conversation + retry')
+  // Auto-heal: an error on an EXISTING conversation usually means the stored
+  // conversation id is no longer usable on the Dify side:
+  //   - 400: the conversation is pinned to a now-disabled model (Dify snapshots
+  //     the model config per conversation, e.g. after changing the model).
+  //   - 404 "Conversation Not Exists": the conversation is gone (e.g. the Dify
+  //     database was reset/restored).
+  // Clear the stored conversation id and retry ONCE with a fresh conversation,
+  // so the user is never stuck. A 404 WITHOUT a conversation id is a real
+  // URL/config problem and must surface as an error (no retry).
+  if (!upstream.ok && (upstream.status === 400 || upstream.status === 404) && conversationId) {
+    console.warn(
+      `[brain] ${upstream.status} sur conversation existante → reset conversation + retry`,
+    )
     try {
       await Promise.resolve(
         db.update(users).set({ difyConversationId: null }).where(eq(users.id, userId)),
