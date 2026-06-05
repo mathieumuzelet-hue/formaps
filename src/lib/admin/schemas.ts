@@ -86,3 +86,20 @@ export const newsSetStatusSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(['draft', 'published']),
 })
+
+/** Input schema for `admin.brainSuggestions.create`. */
+export const suggestionCreateSchema = z.object({
+  text: z.string().min(1).max(200),
+})
+
+/** Input schema for `admin.brainSuggestions.update`. */
+export const suggestionUpdateSchema = z.object({
+  id: z.string().uuid(),
+  text: z.string().min(1).max(200).optional(),
+  isActive: z.boolean().optional(),
+})
+
+/** Input schema for `admin.brainSuggestions.reorder` — full ordered id list. */
+export const suggestionReorderSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+})
