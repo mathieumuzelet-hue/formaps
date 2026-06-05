@@ -2,9 +2,10 @@ import { eq } from 'drizzle-orm'
 
 import { auth } from '@/server/auth'
 import { db } from '@/server/db'
-import { users } from '@/server/db/schema'
+import { users, chatQueries } from '@/server/db/schema'
 import { streamChat } from '@/server/dify/client'
 import { parseDifyEvent, parseSSELines } from '@/lib/dify/parse'
+import { relevanceThreshold, buildChatQueryValues } from '@/server/brain/chat-log'
 
 export const runtime = 'nodejs'
 
@@ -98,23 +99,45 @@ export async function POST(request: Request): Promise<Response> {
     return json({ error: 'dify_unavailable', status: upstream.status }, 502)
   }
 
-  // Relay the SSE stream untouched, while inspecting chunks to capture the
-  // `conversation_id` Dify assigns. We do NOT buffer the *response*: each chunk
-  // is enqueued unchanged immediately. We DO keep a small text buffer for the
-  // inspection side, so a `data:` frame split across two network chunks still
-  // parses (mirrors the client hook's frame buffering).
+  // Relay the SSE stream untouched, while inspecting frames to capture the
+  // conversation id Dify assigns (new conversations), the full answer, and
+  // the message_end retrieval metadata for the chat_queries log. Each chunk
+  // is enqueued unchanged immediately; only the inspection side buffers.
   const decoder = new TextDecoder()
   const hadConversationId = conversationId != null
-  let captured = false
-  // Leftover incomplete SSE segment carried over to the next chunk.
+  let capturedConversationId = false
   let buffer = ''
+
+  // Accumulated for the fire-and-forget chat_queries INSERT in flush().
+  let answer = ''
+  let endMessageId: string | null = null
+  let endScores: number[] | null = null
+  let streamConversationId = conversationId
+
+  const inspectFrames = (complete: string) => {
+    for (const payload of parseSSELines(complete)) {
+      const parsed = parseDifyEvent(payload)
+      if (parsed.answerDelta) answer += parsed.answerDelta
+      if (parsed.messageId) endMessageId = parsed.messageId
+      if (parsed.scores) endScores = parsed.scores
+      if (parsed.conversationId) {
+        streamConversationId = parsed.conversationId
+        if (!hadConversationId && !capturedConversationId) {
+          capturedConversationId = true
+          const newId = parsed.conversationId
+          // Fire-and-forget: don't await, don't break the stream on error.
+          void Promise.resolve(
+            db.update(users).set({ difyConversationId: newId }).where(eq(users.id, userId)),
+          ).catch(() => {})
+        }
+      }
+    }
+  }
 
   const inspector = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
       // Pass through immediately — never block the client on inspection.
       controller.enqueue(chunk)
-
-      if (hadConversationId || captured) return
       try {
         buffer += decoder.decode(chunk, { stream: true })
         // Only parse up to the last frame delimiter; keep the incomplete tail.
@@ -122,23 +145,35 @@ export async function POST(request: Request): Promise<Response> {
         if (lastDelimiter === -1) return
         const complete = buffer.slice(0, lastDelimiter)
         buffer = buffer.slice(lastDelimiter + 2)
-
-        for (const payload of parseSSELines(complete)) {
-          const parsed = parseDifyEvent(payload)
-          if (parsed.conversationId) {
-            captured = true
-            const newId = parsed.conversationId
-            // Fire-and-forget: don't await, don't break the stream on error.
-            // Drizzle builders are PromiseLike (no `.catch`), so wrap in
-            // Promise.resolve before attaching the rejection handler.
-            void Promise.resolve(
-              db.update(users).set({ difyConversationId: newId }).where(eq(users.id, userId)),
-            ).catch(() => {})
-            break
-          }
-        }
+        inspectFrames(complete)
       } catch {
         // Inspection failures must never affect the relayed bytes.
+      }
+    },
+    flush() {
+      try {
+        // Parse any trailing frame not terminated by a blank line.
+        buffer += decoder.decode()
+        if (buffer.trim().length > 0) inspectFrames(buffer)
+
+        // Only log complete answers: a stream without message_end (network
+        // cut, model error) is noise for FAQ analysis.
+        if (!endMessageId || endScores === null || !streamConversationId) return
+        const values = buildChatQueryValues({
+          query,
+          answer,
+          conversationId: streamConversationId,
+          messageId: endMessageId,
+          userId,
+          scores: endScores,
+          threshold: relevanceThreshold(process.env.FAQ_RELEVANCE_THRESHOLD),
+        })
+        // Fire-and-forget: logging must never delay or fail the response.
+        void Promise.resolve(db.insert(chatQueries).values(values)).catch((err) => {
+          console.error('[brain] log chat_queries a échoué:', err)
+        })
+      } catch (err) {
+        console.error('[brain] inspection finale a échoué:', err)
       }
     },
   })
