@@ -72,3 +72,12 @@ export const news = pgTable('news', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+export const brainSuggestions = pgTable('brain_suggestions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  text: text('text').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})

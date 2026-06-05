@@ -15,6 +15,13 @@
       "when": 1780608155158,
       "tag": "0001_marvelous_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780669435899,
+      "tag": "0002_supreme_marauders",
+      "breakpoints": true
     }
   ]
 }
