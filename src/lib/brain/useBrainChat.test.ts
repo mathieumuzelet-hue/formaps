@@ -57,6 +57,13 @@ describe('reduceFrame', () => {
       { doc: 'Guide.pdf', tag: 'Encaissement' },
     ])
   })
+
+  it('pose le messageId du message_end sur le message ai', () => {
+    const frame =
+      'data: {"event":"message_end","id":"msg-7","conversation_id":"cv-1","metadata":{"retriever_resources":[]}}'
+    const next = reduceFrame({ role: 'ai', text: 'réponse' }, frame)
+    expect(next.messageId).toBe('msg-7')
+  })
 })
 
 describe('useBrainChat', () => {

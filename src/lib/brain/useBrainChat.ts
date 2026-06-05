@@ -8,6 +8,8 @@ export type BrainMessage = {
   role: 'user' | 'ai'
   text: string
   sources?: BrainSource[]
+  /** Dify message id, set at message_end — keys the 👍/👎 feedback. */
+  messageId?: string
 }
 
 export type BrainStatus = 'idle' | 'streaming' | 'error'
@@ -70,6 +72,9 @@ export function reduceFrame(current: BrainMessage, frame: string): BrainMessage 
     }
     if (parsed.sources && parsed.sources.length > 0) {
       next = { ...next, sources: parsed.sources }
+    }
+    if (parsed.messageId) {
+      next = { ...next, messageId: parsed.messageId }
     }
   }
   return next
