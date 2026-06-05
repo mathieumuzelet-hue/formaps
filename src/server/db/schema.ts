@@ -18,6 +18,9 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  // Bumped on every password change/reset; tokens carry it as a claim and any
+  // mismatch kills the session (see src/server/auth/token-validation.ts).
+  passwordChangedAt: timestamp('password_changed_at').defaultNow().notNull(),
   firstName: text('first_name').notNull(),
   role: roleEnum('role').notNull().default('employee'),
   storeId: uuid('store_id').references(() => stores.id, { onDelete: 'set null' }),
