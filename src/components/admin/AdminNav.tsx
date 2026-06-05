@@ -10,6 +10,7 @@ const NAV_ITEMS: ReadonlyArray<readonly [href: string, label: string, icon: stri
   ['/admin/formations', 'Formations', 'book'],
   ['/admin/actualites', 'Actualités', 'bell'],
   ['/admin/utilisateurs', 'Utilisateurs', 'user'],
+  ['/admin/suggestions', 'Suggestions BRAIN', 'brain'],
 ]
 
 function isActive(pathname: string, href: string): boolean {
