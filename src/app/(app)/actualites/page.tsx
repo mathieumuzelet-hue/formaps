@@ -99,11 +99,11 @@ function Featured({ article }: { article: Article }) {
           <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-red">
             À la une
           </div>
-          <h2 className="font-serif text-4xl font-extrabold leading-[1.05] tracking-[-0.01em] decoration-red/40 decoration-2 underline-offset-4 group-hover:underline md:text-5xl">
+          <h2 className="font-serif text-3xl font-extrabold leading-[1.05] tracking-[-0.01em] decoration-red/40 decoration-2 underline-offset-4 group-hover:underline md:text-4xl">
             {article.title}
           </h2>
           {article.excerpt && (
-            <p className="mt-4 font-serif text-[18px] leading-[1.6] text-sub md:text-[19px]">
+            <p className="mt-4 font-serif text-[16px] leading-[1.6] text-sub md:text-[17px]">
               {article.excerpt}
             </p>
           )}

@@ -43,11 +43,11 @@ export default async function ArticlePage({
         <div className="mb-4 text-[11px] font-bold uppercase tracking-[0.22em] text-red">
           Actualité interne
         </div>
-        <h1 className="font-serif text-4xl font-extrabold leading-[1.04] tracking-[-0.01em] md:text-5xl">
+        <h1 className="font-serif text-3xl font-extrabold leading-[1.04] tracking-[-0.01em] md:text-4xl">
           {article.title}
         </h1>
         {article.excerpt && (
-          <p className="mx-auto mt-5 max-w-[640px] font-serif text-[19px] leading-[1.6] text-sub md:text-[21px]">
+          <p className="mx-auto mt-5 max-w-[640px] font-serif text-[17px] leading-[1.6] text-sub md:text-[18px]">
             {article.excerpt}
           </p>
         )}
