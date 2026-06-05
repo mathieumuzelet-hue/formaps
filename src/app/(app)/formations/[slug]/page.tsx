@@ -5,6 +5,7 @@ import { TRPCError } from '@trpc/server'
 import { getServerCaller } from '@/server/trpc/server'
 import { Icon } from '@/components/ui/Icon'
 import { ImgSlot } from '@/components/ui/ImgSlot'
+import { MarkDoneButton } from '@/components/formation/MarkDoneButton'
 
 export default async function FormationDetailPage({
   params,
@@ -159,6 +160,7 @@ export default async function FormationDetailPage({
               SharePoint
             </div>
           )}
+          <MarkDoneButton formationId={formation.id} percent={percent} />
         </div>
 
         {/* Related */}
