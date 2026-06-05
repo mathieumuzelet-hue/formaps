@@ -6,19 +6,7 @@ import Papa from 'papaparse'
 import { trpc } from '@/lib/trpc/client'
 import { Icon } from '@/components/ui/Icon'
 import { buildTemplateCsv, toCredentialsCsv } from '@/lib/admin/csv-export'
-
-/** Trigger a client-side download of `content` as a UTF-8 text file. */
-function downloadCsv(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
-}
+import { downloadCsv } from '@/lib/admin/download-csv'
 
 type RowError = { row: number; message: string }
 type CreatedUser = { row: number; email: string; firstName: string; password: string }

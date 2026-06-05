@@ -2,6 +2,7 @@
 
 import { trpc } from '@/lib/trpc/client'
 import { buildFaqGapsCsv, type FaqGapGroup } from '@/lib/admin/faq-gaps'
+import { downloadCsv } from '@/lib/admin/download-csv'
 
 const TH = 'px-4 py-2.5 text-left text-[11.5px] font-semibold uppercase tracking-wide text-faint'
 const TD = 'px-4 py-3 text-[14px] text-ink align-middle'
@@ -26,13 +27,7 @@ export function FaqGapsAdmin() {
     const csv = buildFaqGapsCsv(
       groups.map((g) => ({ ...g, lastAskedAt: new Date(g.lastAskedAt) })),
     )
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `faq-gaps-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadCsv(`faq-gaps-${new Date().toISOString().slice(0, 10)}.csv`, csv)
   }
 
   return (
