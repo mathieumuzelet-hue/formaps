@@ -80,9 +80,13 @@ export function BNav({ firstName, role }: BNavProps) {
       <div className="ml-auto flex items-center gap-[18px]">
         <Icon name="search" size={20} color={COLORS.sub} />
         <Icon name="bell" size={20} color={COLORS.sub} />
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sand text-[13px] font-bold">
+        <Link
+          href="/compte/mot-de-passe"
+          title="Changer mon mot de passe"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-sand text-[13px] font-bold transition-colors hover:bg-line"
+        >
           {initials(firstName)}
-        </div>
+        </Link>
         <ApsLogo height={28} />
       </div>
     </header>
