@@ -27,6 +27,15 @@ export function UtilisateursAdmin() {
   const storesQuery = trpc.admin.stores.list.useQuery()
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
+  const [resetResult, setResetResult] = useState<{ email: string; password: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const resetPassword = trpc.admin.users.resetPassword.useMutation({
+    onSuccess: (data) => {
+      setResetResult({ email: data.email, password: data.password })
+      setCopied(false)
+    },
+  })
 
   if (list.isLoading) {
     return <p className="mt-6 text-[14px] text-sub">Chargement…</p>
@@ -57,6 +66,42 @@ export function UtilisateursAdmin() {
       </div>
 
       <CsvImportCard kind="users" />
+
+      {resetResult && (
+        <div className="rounded-[14px] border border-red/40 bg-surface p-4">
+          <p className="text-[14px] font-semibold text-ink">
+            Nouveau mot de passe pour {resetResult.email}
+          </p>
+          <p className="mt-1 text-[13px] text-sub">
+            Transmettez-le maintenant — il ne sera plus affiché ensuite.
+          </p>
+          <div className="mt-3 flex items-center gap-3">
+            <code className="rounded-lg border border-line bg-card px-3 py-1.5 font-mono text-[15px]">
+              {resetResult.password}
+            </code>
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard.writeText(resetResult.password)
+                setCopied(true)
+              }}
+              className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sand/50"
+            >
+              {copied ? 'Copié ✓' : 'Copier'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setResetResult(null)}
+              className="rounded-lg px-3 py-1.5 text-[13px] font-medium text-sub hover:bg-sand/50"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
+      {resetPassword.isError && (
+        <p className="text-[13px] text-red">{resetPassword.error.message}</p>
+      )}
 
       <div className="overflow-hidden rounded-[14px] border border-line bg-card">
         <table className="w-full border-collapse">
@@ -94,13 +139,29 @@ export function UtilisateursAdmin() {
                   <td className={`${TD} text-sub`}>{u.firstName}</td>
                   <td className={`${TD} text-sub`}>{u.role}</td>
                   <td className={`${TD} text-sub`}>{storeName(u.storeId)}</td>
-                  <td className={`${TD} text-right`}>
+                  <td className={`${TD} whitespace-nowrap text-right`}>
                     <button
                       type="button"
                       onClick={() => setEditing(u.id)}
                       className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sand/50"
                     >
                       Modifier
+                    </button>
+                    <button
+                      type="button"
+                      disabled={resetPassword.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Réinitialiser le mot de passe de ${u.email} ? L'ancien ne fonctionnera plus.`,
+                          )
+                        ) {
+                          resetPassword.mutate({ id: u.id })
+                        }
+                      }}
+                      className="ml-2 rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-red hover:bg-sand/50 disabled:opacity-50"
+                    >
+                      Réinitialiser mdp
                     </button>
                   </td>
                 </tr>

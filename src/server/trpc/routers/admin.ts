@@ -229,6 +229,27 @@ const usersRouter = router({
   }),
 
   /**
+   * Reset a user's password to a fresh server-generated one. Only the argon2
+   * hash is stored; the plaintext is returned ONCE so the admin can hand it
+   * over (same pattern as CSV bulk import).
+   */
+  resetPassword: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const password = generatePassword()
+      const passwordHash = await hashPassword(password)
+
+      const [row] = await ctx.db
+        .update(users)
+        .set({ passwordHash, updatedAt: new Date() })
+        .where(eq(users.id, input.id))
+        .returning({ id: users.id, email: users.email })
+
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Utilisateur introuvable' })
+      return { id: row.id, email: row.email, password }
+    }),
+
+  /**
    * Bulk-create users from parsed CSV rows. Each user gets a server-generated
    * password; only its argon2 hash is stored, while the plaintext is returned in
    * the result so the admin can distribute credentials. Store names are resolved
