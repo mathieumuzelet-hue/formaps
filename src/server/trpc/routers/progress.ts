@@ -1,4 +1,4 @@
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { formations, userFormationProgress } from '@/server/db/schema'
@@ -48,5 +48,24 @@ export const progressRouter = router({
         .returning()
 
       return row
+    }),
+
+  /**
+   * Revert a formation to "not started" for the current user by deleting the
+   * progress row. Idempotent: succeeds even when no row exists.
+   */
+  markUndone: protectedProcedure
+    .input(z.object({ formationId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .delete(userFormationProgress)
+        .where(
+          and(
+            eq(userFormationProgress.userId, ctx.user.id),
+            eq(userFormationProgress.formationId, input.formationId),
+          ),
+        )
+
+      return { formationId: input.formationId }
     }),
 })
