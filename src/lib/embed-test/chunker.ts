@@ -50,6 +50,12 @@ function splitByTokens(text: string, maxTokens: number): string[] {
  * General-mode chunking: split on separator, merge consecutive segments while
  * they fit in maxTokens, token-split oversized segments, then prepend the
  * last `overlapTokens` tokens of the previous chunk.
+ *
+ * Known approximation: the overlap is prepended AFTER the merge step, so final
+ * chunks can exceed maxTokens (up to maxTokens + overlapTokens), whereas real
+ * Dify counts the overlap WITHIN the max length. Net effect: simulated chunks
+ * are >= real Dify chunks at equal overlap. This is accepted for a comparative
+ * bench — do not "fix" it without re-validating rankings against real Dify.
  */
 function chunkGeneral(
   text: string,
