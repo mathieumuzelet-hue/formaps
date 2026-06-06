@@ -48,5 +48,5 @@ export function parseEmbedTestEvent(payload: string): EmbedTestEvent | null {
     return null
   }
   const parsed = eventSchema.safeParse(obj)
-  return parsed.success ? (parsed.data as EmbedTestEvent) : null
+  return parsed.success ? parsed.data : null
 }

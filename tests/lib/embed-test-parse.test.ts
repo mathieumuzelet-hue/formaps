@@ -49,6 +49,20 @@ describe('parseEmbedTestEvent', () => {
     ).toBe('error')
   })
 
+  test('returns null when a nested config violates chunkConfigSchema bounds', () => {
+    const badConfig = {
+      label: 'c',
+      mode: 'general',
+      separator: '\\n\\n',
+      maxTokens: 50, // below chunkConfigSchema min of 100
+      overlapTokens: 0,
+      preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+    }
+    expect(
+      parseEmbedTestEvent(JSON.stringify({ type: 'configs', items: [badConfig] })),
+    ).toBeNull()
+  })
+
   test('returns null on invalid JSON, unknown type, or missing fields', () => {
     expect(parseEmbedTestEvent('{oops')).toBeNull()
     expect(parseEmbedTestEvent(JSON.stringify({ type: 'nope' }))).toBeNull()
