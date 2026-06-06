@@ -1,3 +1,6 @@
+import { redirect } from 'next/navigation'
+
+import { auth } from '@/server/auth'
 import { Icon } from '@/components/ui/Icon'
 import { ApsLogo } from '@/components/ui/ApsLogo'
 import { BRoute } from '@/components/route/BRoute'
@@ -8,6 +11,16 @@ export default async function ConnexionPage({
 }: {
   searchParams: Promise<{ changed?: string }>
 }) {
+  // Node-side "already logged in → home" bounce. The Edge middleware can NOT
+  // do this (it only sees the JWT signature, not password freshness, and
+  // bouncing stale tokens home caused an infinite redirect loop — incident
+  // 2026-06-06). Here auth() runs the freshness check: a genuinely valid
+  // session goes home, a stale one resolves to null and gets the login form.
+  const session = await auth()
+  if (session?.user) {
+    redirect('/')
+  }
+
   const { changed } = await searchParams
   return (
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
