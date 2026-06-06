@@ -79,6 +79,17 @@ describe('POST /api/admin/embed-test — validation', () => {
     expect(res.status).toBe(400)
   })
 
+  test('non-multipart body → 400', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/admin/embed-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    )
+    expect(res.status).toBe(400)
+  })
+
   test('oversize file → 413', async () => {
     const big = new File([new Uint8Array(25 * 1024 * 1024 + 1)], 'big.pdf', {
       type: 'application/pdf',

@@ -55,23 +55,31 @@ export async function POST(req: Request): Promise<Response> {
   const buffer = new Uint8Array(await file.arrayBuffer())
   const encoder = new TextEncoder()
 
+  let cancelled = false
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const emit = (event: unknown) => {
+        if (cancelled) return
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
       }
       try {
         await runEmbedTest(buffer, model, emit)
       } catch (err) {
-        console.error('[embed-test] run a échoué:', err)
-        emit({
-          type: 'error',
-          code: 'internal',
-          message: 'Le test a échoué de façon inattendue. Réessayez.',
-        })
+        // A client disconnect makes enqueue throw mid-pipeline — not a failure.
+        if (!cancelled) {
+          console.error('[embed-test] run a échoué:', err)
+          emit({
+            type: 'error',
+            code: 'internal',
+            message: 'Le test a échoué de façon inattendue. Réessayez.',
+          })
+        }
       } finally {
-        controller.close()
+        if (!cancelled) controller.close()
       }
+    },
+    cancel() {
+      cancelled = true
     },
   })
 

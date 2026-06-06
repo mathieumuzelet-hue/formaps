@@ -51,7 +51,7 @@ export async function buildPdfSample(
     const out = await PDFDocument.create()
     const copied = await out.copyPages(src, indices)
     for (const page of copied) out.addPage(page)
-    return out.save()
+    return await out.save()
   } catch (err) {
     throw new PdfUnreadableError(err)
   }

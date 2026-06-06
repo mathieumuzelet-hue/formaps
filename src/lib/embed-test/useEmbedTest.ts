@@ -78,7 +78,10 @@ export function useEmbedTest(): UseEmbedTest {
   const [state, setState] = useState<EmbedTestState>(initialState)
   const runningRef = useRef(false)
 
-  const reset = useCallback(() => setState(initialState), [])
+  const reset = useCallback(() => {
+    if (runningRef.current) return
+    setState(initialState)
+  }, [])
 
   const run = useCallback(async (file: File, model: EmbedTestModelKey) => {
     if (runningRef.current) return
