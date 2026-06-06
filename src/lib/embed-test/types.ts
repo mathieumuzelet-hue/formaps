@@ -40,6 +40,56 @@ export const chunkConfigSchema = z
 
 export type ChunkConfig = z.infer<typeof chunkConfigSchema>
 
+/**
+ * Identité structurelle d'une config — utilisé pour dédupliquer les
+ * propositions de Claude entre tours. Ignore label/rationale volontairement.
+ */
+export function configKey(c: ChunkConfig): string {
+  return JSON.stringify([
+    c.mode,
+    c.separator,
+    c.maxTokens,
+    c.overlapTokens,
+    c.parentMaxTokens ?? null,
+    c.childMaxTokens ?? null,
+    c.preprocessing.removeExtraSpaces,
+    c.preprocessing.removeUrlsEmails,
+  ])
+}
+
+export type TextDiagnostic = {
+  totalChars: number
+  /** Occurrences of \n{2,} (paragraph breaks). */
+  paragraphBreaks: number
+  /** Occurrences of single \n (not part of a paragraph break). */
+  lineBreaks: number
+  /** 0 when the text has no paragraphs. */
+  avgParagraphTokens: number
+  /** Lines shorter than 40 chars / non-empty lines (0..1). */
+  shortLineRatio: number
+  verdict: 'structured' | 'weakly_structured' | 'flat'
+  notes: string[]
+}
+
+export const testedConfigSchema = z.object({
+  config: chunkConfigSchema,
+  score: z.number(),
+  issues: z.array(z.string()),
+  failed: z.boolean().optional(),
+  round: z.number().int().min(1),
+})
+export type TestedConfig = z.infer<typeof testedConfigSchema>
+
+export const refinePayloadSchema = z.object({
+  ocr: z.object({
+    verdict: z.enum(['text_ok', 'ocr_needed']),
+    reason: z.string(),
+    coverage: z.number().min(0).max(1),
+  }),
+  tested: z.array(testedConfigSchema).min(1).max(30),
+})
+export type RefinePayload = z.infer<typeof refinePayloadSchema>
+
 export type OcrVerdict = {
   verdict: 'text_ok' | 'ocr_needed'
   reason: string
@@ -68,5 +118,6 @@ export type EmbedTestEvent =
   | { type: 'step'; id: string; label: string }
   | { type: 'configs'; items: ChunkConfig[] }
   | { type: 'config-result'; result: ConfigResult }
+  | { type: 'diagnostic'; diagnostic: TextDiagnostic }
   | { type: 'report'; report: EmbedTestReport }
   | { type: 'error'; code: string; message: string }
