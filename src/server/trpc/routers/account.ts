@@ -35,7 +35,7 @@ export const accountRouter = router({
       const passwordHash = await hashPassword(input.newPassword)
       await ctx.db
         .update(users)
-        .set({ passwordHash, updatedAt: new Date() })
+        .set({ passwordHash, passwordChangedAt: new Date(), updatedAt: new Date() })
         .where(eq(users.id, ctx.user.id))
 
       return { ok: true }
