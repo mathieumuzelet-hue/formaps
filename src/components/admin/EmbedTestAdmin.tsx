@@ -14,19 +14,23 @@ export function EmbedTestAdmin() {
   const [copied, setCopied] = useState(false)
 
   const running = state.status === 'running'
-  const canLaunch = file != null && !running
+  const tooBig = file != null && file.size > MAX_SIZE
+  const canLaunch = file != null && !tooBig && !running
 
   const onLaunch = () => {
     if (!file) return
-    if (file.size > MAX_SIZE) return
     setCopied(false)
     void run(file, model)
   }
 
   const onCopy = async () => {
     if (!state.report) return
-    await navigator.clipboard.writeText(state.report.recommendation.difySettings)
-    setCopied(true)
+    try {
+      await navigator.clipboard.writeText(state.report.recommendation.difySettings)
+      setCopied(true)
+    } catch {
+      // Clipboard unavailable — skip the "Copié" confirmation.
+    }
   }
 
   const best = state.report?.recommendation.configIndex
@@ -51,6 +55,9 @@ export function EmbedTestAdmin() {
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="text-[13.5px]"
             />
+            {tooBig && (
+              <p className="text-[12.5px] text-red">Fichier trop volumineux (25 Mo max).</p>
+            )}
           </label>
           <label className="flex flex-col gap-1 text-[14px] font-medium">
             Modèle
@@ -96,7 +103,15 @@ export function EmbedTestAdmin() {
           <ul className="mt-2 flex flex-col gap-1 text-[13.5px]">
             {state.steps.map((s, i) => (
               <li key={`${s.id}-${i}`} className="flex items-center gap-2">
-                <span aria-hidden>{i < state.steps.length - 1 || !running ? '✓' : '…'}</span>
+                <span aria-hidden>
+                  {i < state.steps.length - 1
+                    ? '✓'
+                    : state.status === 'error'
+                      ? '✗'
+                      : running
+                        ? '…'
+                        : '✓'}
+                </span>
                 {s.label}
               </li>
             ))}
