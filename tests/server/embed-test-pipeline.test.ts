@@ -25,7 +25,7 @@ vi.mock('@/server/embed-test/claude', async (importOriginal) => {
   }
 })
 
-import { runEmbedTest } from '@/server/embed-test/pipeline'
+import { runEmbedTest, sampleChunks } from '@/server/embed-test/pipeline'
 import { PdfUnreadableError } from '@/server/embed-test/extract'
 import type { ChunkConfig, EmbedTestEvent } from '@/lib/embed-test/types'
 
@@ -122,6 +122,25 @@ describe('runEmbedTest — failures', () => {
     expect(events.some((e) => e.type === 'report')).toBe(false)
   })
 
+  test('all judges fail → all_judges_failed error event, no report', async () => {
+    judgeConfig.mockRejectedValue(new Error('down'))
+    const events = await collect()
+    const results = events.filter((e) => e.type === 'config-result')
+    expect(results).toHaveLength(2)
+    expect(results.every((r) => r.type === 'config-result' && r.result.failed)).toBe(true)
+    const error = events.find((e) => e.type === 'error')
+    expect(error?.type === 'error' && error.code).toBe('all_judges_failed')
+    expect(events.some((e) => e.type === 'report')).toBe(false)
+  })
+
+  test('buildPdfSample PdfUnreadableError → pdf_unreadable, not ocr_compare_failed', async () => {
+    buildPdfSample.mockRejectedValueOnce(new PdfUnreadableError())
+    const events = await collect()
+    const error = events.find((e) => e.type === 'error')
+    expect(error?.type === 'error' && error.code).toBe('pdf_unreadable')
+    expect(events.some((e) => e.type === 'report')).toBe(false)
+  })
+
   test('ocr_needed verdict propagates to recommendation', async () => {
     ocrCompare.mockResolvedValueOnce({
       data: { verdict: 'ocr_needed', reason: 'scanné', coverage: 0.05 },
@@ -133,5 +152,28 @@ describe('runEmbedTest — failures', () => {
       expect(report.report.ocr.verdict).toBe('ocr_needed')
       expect(report.report.recommendation.difySettings).toContain('ACTIVEZ le pipeline OCR')
     }
+  })
+})
+
+describe('sampleChunks', () => {
+  const makeChunks = (n: number) => Array.from({ length: n }, (_, i) => ({ text: String(i) }))
+
+  test('length ≤ max → returns the same chunks unchanged', () => {
+    const chunks = makeChunks(15)
+    expect(sampleChunks(chunks)).toEqual(chunks)
+    const small = makeChunks(3)
+    expect(sampleChunks(small)).toEqual(small)
+  })
+
+  test('length 16 → exactly 15 unique chunks', () => {
+    const sampled = sampleChunks(makeChunks(16))
+    expect(sampled).toHaveLength(15)
+    expect(new Set(sampled.map((c) => c.text)).size).toBe(15)
+  })
+
+  test('length 100 → exactly 15 unique chunks from head, middle, and tail', () => {
+    const sampled = sampleChunks(makeChunks(100))
+    expect(sampled).toHaveLength(15)
+    expect(new Set(sampled.map((c) => c.text)).size).toBe(15)
   })
 })

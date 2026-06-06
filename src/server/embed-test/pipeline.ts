@@ -87,7 +87,18 @@ export async function runEmbedTest(
     const res = await ocrCompare(client, model, toBase64(samplePdf), nativeSample)
     add(res.usage)
     ocr = res.data
-  } catch {
+  } catch (err) {
+    console.error('[embed-test] OCR compare a échoué:', err)
+    if (err instanceof PdfUnreadableError) {
+      // buildPdfSample (pdf-lib) can fail on PDFs unpdf could still read
+      // (e.g. encrypted) — report as unreadable, not as a Claude API failure.
+      emit({
+        type: 'error',
+        code: 'pdf_unreadable',
+        message: 'PDF illisible — protégé, corrompu ou non valide.',
+      })
+      return
+    }
     emit({
       type: 'error',
       code: 'ocr_compare_failed',
@@ -110,7 +121,8 @@ export async function runEmbedTest(
     })
     add(res.usage)
     configs = res.data
-  } catch {
+  } catch (err) {
+    console.error('[embed-test] proposeConfigs a échoué:', err)
     emit({
       type: 'error',
       code: 'propose_failed',
@@ -134,7 +146,8 @@ export async function runEmbedTest(
       const res = await judgeConfig(client, model, configs[i].label, sampleChunks(chunks))
       add(res.usage)
       result = { index: i, ...res.data, chunkCount: chunks.length }
-    } catch {
+    } catch (err) {
+      console.error(`[embed-test] judgeConfig ${i + 1}/${configs.length} a échoué:`, err)
       result = {
         index: i,
         score: 0,
