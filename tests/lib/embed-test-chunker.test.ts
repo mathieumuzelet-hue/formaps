@@ -96,3 +96,64 @@ describe('chunkDocument — general', () => {
     expect(withOverlap[0].text).toBe(noOverlap[0].text)
   })
 })
+
+describe('chunkDocument — parent-child', () => {
+  const pc: ChunkConfig = {
+    ...base,
+    mode: 'parent-child',
+    parentMaxTokens: 60,
+    childMaxTokens: 20,
+  }
+
+  test('children carry their parent text', () => {
+    const para = 'alpha beta gamma delta epsilon zeta eta theta iota kappa'
+    const text = `${para}\n\n${para}\n\n${para}\n\n${para}`
+    const chunks = chunkDocument(text, pc)
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const c of chunks) {
+      expect(c.parentText).toBeDefined()
+      expect(c.parentText).toContain(c.text.split(' ')[0])
+      expect(countTokens(c.text)).toBeLessThanOrEqual(20)
+      expect(countTokens(c.parentText!)).toBeLessThanOrEqual(60)
+    }
+  })
+
+  test('every child belongs to exactly one parent', () => {
+    const text = 'Un deux trois.\n\nQuatre cinq six.\n\nSept huit neuf.'
+    const chunks = chunkDocument(text, pc)
+    const parents = new Set(chunks.map((c) => c.parentText))
+    expect(parents.size).toBeGreaterThanOrEqual(1)
+    for (const c of chunks) expect(c.parentText).toContain(c.text)
+  })
+
+  test('childMaxTokens > parentMaxTokens degenerates to one child per parent', () => {
+    // Schema-invalid (childMaxTokens > parentMaxTokens) but the chunker must
+    // tolerate raw configs without throwing.
+    const degenerate: ChunkConfig = {
+      ...base,
+      mode: 'parent-child',
+      parentMaxTokens: 60,
+      childMaxTokens: 2000,
+    }
+    // Each paragraph is ~36-39 tokens: alone it fits a 60-token parent, but
+    // any two together exceed it — so every paragraph becomes its own parent.
+    const paras = [
+      'alpha beta gamma delta epsilon zeta eta theta iota kappa alpha beta gamma delta epsilon zeta eta theta iota kappa alpha beta gamma delta epsilon zeta eta theta iota kappa',
+      'lambda mu nu xi omicron pi rho sigma tau upsilon lambda mu nu xi omicron pi rho sigma tau upsilon lambda mu nu xi omicron pi rho sigma tau upsilon',
+      'phi chi psi omega aleph beth gimel daleth he waw phi chi psi omega aleph beth gimel daleth he waw phi chi psi omega aleph beth gimel daleth he waw',
+      'zayin heth teth yodh kaph lamedh mem nun samekh ayin zayin heth teth yodh kaph lamedh mem nun samekh ayin',
+    ]
+    const text = paras.join('\n\n')
+    let chunks: ReturnType<typeof chunkDocument> = []
+    expect(() => {
+      chunks = chunkDocument(text, degenerate)
+    }).not.toThrow()
+    expect(chunks.length).toBeGreaterThan(1)
+    const parents = new Set(chunks.map((c) => c.parentText))
+    // Exactly one child per parent: each child IS its parent.
+    expect(parents.size).toBe(chunks.length)
+    for (const c of chunks) {
+      expect(c.text).toBe(c.parentText)
+    }
+  })
+})
