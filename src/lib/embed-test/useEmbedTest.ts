@@ -11,9 +11,22 @@ import type {
   EmbedTestEvent,
   EmbedTestModelKey,
   EmbedTestReport,
+  OcrVerdict,
+  RefinePayload,
+  TestedConfig,
+  TextDiagnostic,
 } from '@/lib/embed-test/types'
 
 export type EmbedTestStatus = 'idle' | 'running' | 'done' | 'error'
+
+/** Cross-round winner — config, its score, the round that produced it, and the OCR verdict to reuse. */
+export type BestSoFar = {
+  config: ChunkConfig
+  score: number
+  rationale: string
+  round: number
+  ocr: OcrVerdict
+}
 
 export type EmbedTestState = {
   status: EmbedTestStatus
@@ -22,6 +35,10 @@ export type EmbedTestState = {
   results: ConfigResult[]
   report: EmbedTestReport | null
   error: string | null
+  diagnostic: TextDiagnostic | null
+  round: number
+  history: TestedConfig[]
+  bestSoFar: BestSoFar | null
 }
 
 export const initialState: EmbedTestState = {
@@ -31,6 +48,10 @@ export const initialState: EmbedTestState = {
   results: [],
   report: null,
   error: null,
+  diagnostic: null,
+  round: 0,
+  history: [],
+  bestSoFar: null,
 }
 
 /** Pure reducer — the streaming loop is built on it (same pattern as reduceFrame). */
@@ -42,11 +63,56 @@ export function applyEvent(state: EmbedTestState, event: EmbedTestEvent): EmbedT
       return { ...state, configs: event.items }
     case 'config-result':
       return { ...state, results: [...state.results, event.result] }
-    case 'report':
-      return { ...state, report: event.report, status: 'done' }
+    case 'diagnostic':
+      return { ...state, diagnostic: event.diagnostic }
+    case 'report': {
+      const tested: TestedConfig[] = state.results.flatMap((r) => {
+        const cfg = state.configs[r.index]
+        if (!cfg) return []
+        return [
+          {
+            config: cfg,
+            score: r.score,
+            issues: r.issues,
+            ...(r.failed ? { failed: true as const } : {}),
+            round: state.round,
+          },
+        ]
+      })
+      const bestIdx = event.report.recommendation.configIndex
+      const bestResult = state.results.find((r) => r.index === bestIdx)
+      const bestConfig = state.configs[bestIdx]
+      const candidate =
+        bestConfig && bestResult
+          ? {
+              config: bestConfig,
+              score: bestResult.score,
+              rationale: event.report.recommendation.rationale,
+              round: state.round,
+              ocr: event.report.ocr,
+            }
+          : null
+      const bestSoFar =
+        candidate && (!state.bestSoFar || candidate.score > state.bestSoFar.score)
+          ? candidate
+          : state.bestSoFar
+      return {
+        ...state,
+        report: event.report,
+        status: 'done',
+        history: [...state.history, ...tested],
+        bestSoFar,
+      }
+    }
     case 'error':
       return { ...state, status: 'error', error: event.message }
   }
+}
+
+/** Refine payload for the next round — null until a report exists. */
+export function buildRefinePayload(state: EmbedTestState): RefinePayload | null {
+  if (!state.report || state.history.length === 0) return null
+  return { ocr: state.report.ocr, tested: state.history.slice(-30) }
 }
 
 /** French messages for HTTP-level failures (before the SSE stream starts). */
@@ -70,7 +136,7 @@ export function httpErrorText(status: number): string {
 
 export type UseEmbedTest = {
   state: EmbedTestState
-  run: (file: File, model: EmbedTestModelKey) => Promise<void>
+  run: (file: File, model: EmbedTestModelKey, refine?: RefinePayload) => Promise<void>
   reset: () => void
 }
 
@@ -83,10 +149,17 @@ export function useEmbedTest(): UseEmbedTest {
     setState(initialState)
   }, [])
 
-  const run = useCallback(async (file: File, model: EmbedTestModelKey) => {
+  const run = useCallback(
+    async (file: File, model: EmbedTestModelKey, refine?: RefinePayload) => {
     if (runningRef.current) return
     runningRef.current = true
-    setState({ ...initialState, status: 'running' })
+    setState((prev) => ({
+      ...initialState,
+      status: 'running',
+      round: prev.round + 1,
+      history: prev.history,
+      bestSoFar: prev.bestSoFar,
+    }))
 
     const fail = (message: string) =>
       setState((prev) => ({ ...prev, status: 'error', error: message }))
@@ -95,6 +168,7 @@ export function useEmbedTest(): UseEmbedTest {
       const form = new FormData()
       form.set('file', file)
       form.set('model', model)
+      if (refine) form.set('refine', JSON.stringify(refine))
       const res = await fetch('/api/admin/embed-test', { method: 'POST', body: form })
       if (!res.ok || !res.body) {
         fail(httpErrorText(res.status))
@@ -132,7 +206,9 @@ export function useEmbedTest(): UseEmbedTest {
     } finally {
       runningRef.current = false
     }
-  }, [])
+    },
+    [],
+  )
 
   return { state, run, reset }
 }
