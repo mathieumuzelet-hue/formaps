@@ -49,6 +49,20 @@ describe('ocrCompare', () => {
       ocrCompare(client, 'claude-sonnet-4-6', 'cGRm', 'texte'),
     ).rejects.toThrow()
   })
+
+  test('rejects when the response carries no tool_use block', async () => {
+    const client = {
+      messages: {
+        create: vi.fn().mockResolvedValue({
+          content: [],
+          usage: { input_tokens: 100, output_tokens: 50 },
+        }),
+      },
+    } as unknown as AnthropicLike
+    await expect(
+      ocrCompare(client, 'claude-sonnet-4-6', 'cGRm', 'texte'),
+    ).rejects.toThrow(/no tool_use block/)
+  })
 })
 
 describe('proposeConfigs', () => {
@@ -61,11 +75,25 @@ describe('proposeConfigs', () => {
     expect(res.data).toHaveLength(2)
   })
 
-  test('rejects out-of-bounds configs from Claude', async () => {
-    const client = fakeClient({ configs: [{ ...validConfig, maxTokens: 99999 }] })
+  test('drops individually-invalid configs and keeps the valid ones', async () => {
+    const client = fakeClient({
+      configs: [validConfig, { ...validConfig, maxTokens: 99999 }, { ...validConfig, maxTokens: 512 }],
+    })
+    const res = await proposeConfigs(client, 'claude-sonnet-4-6', 'texte', {
+      totalPages: 1,
+      totalChars: 10,
+    })
+    expect(res.data).toHaveLength(2)
+    expect(res.data.map((c) => c.maxTokens)).toEqual([1024, 512])
+  })
+
+  test('rejects when fewer than 2 configs survive validation', async () => {
+    const client = fakeClient({
+      configs: [validConfig, { ...validConfig, maxTokens: 99999 }],
+    })
     await expect(
       proposeConfigs(client, 'claude-sonnet-4-6', 'texte', { totalPages: 1, totalChars: 10 }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/fewer than 2 valid configs/)
   })
 })
 

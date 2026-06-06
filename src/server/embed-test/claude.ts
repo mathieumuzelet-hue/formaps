@@ -23,7 +23,7 @@ export const EMBED_TEST_MODELS: Record<EmbedTestModelKey, string> = {
 
 /** Structural subset of the Anthropic client used here (test seam). */
 export type AnthropicLike = {
-  messages: { create: (params: Record<string, unknown>) => Promise<unknown> }
+  messages: { create: (params: Anthropic.MessageCreateParams) => Promise<unknown> }
 }
 
 export function anthropicConfigured(): boolean {
@@ -32,7 +32,7 @@ export function anthropicConfigured(): boolean {
 
 export function createAnthropicClient(): AnthropicLike {
   // SDK auto-retries 429/5xx with backoff (default maxRetries: 2).
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) as unknown as AnthropicLike
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 }
 
 export type Usage = { inputTokens: number; outputTokens: number }
@@ -45,10 +45,10 @@ const responseSchema = z.object({
 async function forcedToolCall(
   client: AnthropicLike,
   model: string,
-  prompt: string | Array<Record<string, unknown>>,
+  prompt: string | Anthropic.ContentBlockParam[],
   toolName: string,
   description: string,
-  inputSchema: Record<string, unknown>,
+  inputSchema: Anthropic.Tool.InputSchema,
 ): Promise<{ input: unknown; usage: Usage }> {
   const raw = await client.messages.create({
     model,
@@ -78,7 +78,7 @@ const ocrVerdictSchema = z.object({
   coverage: z.number().min(0).max(1),
 })
 
-const OCR_TOOL_SCHEMA = {
+const OCR_TOOL_SCHEMA: Anthropic.Tool.InputSchema = {
   type: 'object',
   properties: {
     verdict: { type: 'string', enum: ['text_ok', 'ocr_needed'] },
@@ -90,7 +90,7 @@ const OCR_TOOL_SCHEMA = {
   },
   required: ['verdict', 'reason', 'coverage'],
   additionalProperties: false,
-} as const
+}
 
 export async function ocrCompare(
   client: AnthropicLike,
@@ -118,7 +118,7 @@ export async function ocrCompare(
     ],
     'output',
     'Rapporte le verdict OCR structuré',
-    OCR_TOOL_SCHEMA as unknown as Record<string, unknown>,
+    OCR_TOOL_SCHEMA,
   )
   return { data: ocrVerdictSchema.parse(input), usage }
 }
@@ -145,7 +145,7 @@ const CONFIG_PROPERTIES = {
   rationale: { type: 'string' },
 } as const
 
-const PROPOSE_TOOL_SCHEMA = {
+const PROPOSE_TOOL_SCHEMA: Anthropic.Tool.InputSchema = {
   type: 'object',
   properties: {
     configs: {
@@ -160,10 +160,13 @@ const PROPOSE_TOOL_SCHEMA = {
   },
   required: ['configs'],
   additionalProperties: false,
-} as const
+}
 
-const proposeOutputSchema = z.object({
-  configs: z.array(chunkConfigSchema).min(2).max(6),
+// Raw envelope only — each entry is validated individually below so one
+// invalid config (the refines are inexpressible in the strict JSON tool
+// schema) does not fail the whole run.
+const proposeEnvelopeSchema = z.object({
+  configs: z.array(z.unknown()),
 })
 
 export async function proposeConfigs(
@@ -185,9 +188,19 @@ export async function proposeConfigs(
       textSample,
     'output',
     'Rapporte les configurations de chunking à tester',
-    PROPOSE_TOOL_SCHEMA as unknown as Record<string, unknown>,
+    PROPOSE_TOOL_SCHEMA,
   )
-  return { data: proposeOutputSchema.parse(input).configs, usage }
+  const envelope = proposeEnvelopeSchema.parse(input)
+  const valid: ChunkConfig[] = []
+  for (const entry of envelope.configs) {
+    const parsed = chunkConfigSchema.safeParse(entry)
+    if (parsed.success) valid.push(parsed.data)
+  }
+  const survivors = valid.slice(0, 6)
+  if (survivors.length < 2) {
+    throw new Error('Claude proposed fewer than 2 valid configs')
+  }
+  return { data: survivors, usage }
 }
 
 // --------------------------------------------------------------- judgeConfig
@@ -198,7 +211,7 @@ const judgementSchema = z.object({
   summary: z.string(),
 })
 
-const JUDGE_TOOL_SCHEMA = {
+const JUDGE_TOOL_SCHEMA: Anthropic.Tool.InputSchema = {
   type: 'object',
   properties: {
     score: { type: 'number', description: 'Note 0-10 de qualité structurelle des chunks' },
@@ -207,7 +220,7 @@ const JUDGE_TOOL_SCHEMA = {
   },
   required: ['score', 'issues', 'summary'],
   additionalProperties: false,
-} as const
+}
 
 export async function judgeConfig(
   client: AnthropicLike,
@@ -231,7 +244,7 @@ export async function judgeConfig(
       rendered,
     'output',
     'Rapporte le jugement structuré de la config',
-    JUDGE_TOOL_SCHEMA as unknown as Record<string, unknown>,
+    JUDGE_TOOL_SCHEMA,
   )
   return { data: judgementSchema.parse(input), usage }
 }
