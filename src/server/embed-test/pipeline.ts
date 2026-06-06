@@ -142,6 +142,21 @@ export async function runEmbedTest(
     })
     const chunks = chunkDocument(fullText, configs[i])
     let result: ConfigResult
+    if (chunks.length === 0) {
+      // Nothing to judge (e.g. scanned PDF with an empty text layer) — skip
+      // the Claude call entirely instead of judging an empty rendering.
+      result = {
+        index: i,
+        score: 0,
+        issues: [],
+        summary: 'Aucun chunk produit (texte vide ?)',
+        chunkCount: 0,
+        failed: true,
+      }
+      results.push(result)
+      emit({ type: 'config-result', result })
+      continue
+    }
     try {
       const res = await judgeConfig(client, model, configs[i].label, sampleChunks(chunks))
       add(res.usage)

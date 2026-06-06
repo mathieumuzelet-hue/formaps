@@ -26,10 +26,6 @@ export type AnthropicLike = {
   messages: { create: (params: Anthropic.MessageCreateParams) => Promise<unknown> }
 }
 
-export function anthropicConfigured(): boolean {
-  return typeof process.env.ANTHROPIC_API_KEY === 'string' && process.env.ANTHROPIC_API_KEY !== ''
-}
-
 export function createAnthropicClient(): AnthropicLike {
   // SDK auto-retries 429/5xx with backoff (default maxRetries: 2).
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })

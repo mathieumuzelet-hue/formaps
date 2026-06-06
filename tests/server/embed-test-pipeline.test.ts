@@ -141,6 +141,24 @@ describe('runEmbedTest — failures', () => {
     expect(events.some((e) => e.type === 'report')).toBe(false)
   })
 
+  test('empty text layer → no judgeConfig call, all configs failed, all_judges_failed', async () => {
+    extractPages.mockResolvedValueOnce({ pages: ['', ''], totalPages: 2 })
+    const events = await collect()
+    expect(judgeConfig).not.toHaveBeenCalled()
+    const results = events.filter((e) => e.type === 'config-result')
+    expect(results).toHaveLength(2)
+    for (const r of results) {
+      if (r.type === 'config-result') {
+        expect(r.result.failed).toBe(true)
+        expect(r.result.chunkCount).toBe(0)
+        expect(r.result.summary).toBe('Aucun chunk produit (texte vide ?)')
+      }
+    }
+    const error = events.find((e) => e.type === 'error')
+    expect(error?.type === 'error' && error.code).toBe('all_judges_failed')
+    expect(events.some((e) => e.type === 'report')).toBe(false)
+  })
+
   test('ocr_needed verdict propagates to recommendation', async () => {
     ocrCompare.mockResolvedValueOnce({
       data: { verdict: 'ocr_needed', reason: 'scanné', coverage: 0.05 },

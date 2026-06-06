@@ -146,6 +146,7 @@ export function EmbedTestAdmin() {
                 <tr className="border-b border-line text-sub">
                   <th className="py-2 pr-3">Config</th>
                   <th className="py-2 pr-3">Mode</th>
+                  <th className="py-2 pr-3">Délimiteur</th>
                   <th className="py-2 pr-3">Taille</th>
                   <th className="py-2 pr-3">Overlap</th>
                   <th className="py-2 pr-3">Chunks</th>
@@ -176,6 +177,7 @@ export function EmbedTestAdmin() {
                         <td className="py-2 pr-3">
                           {config.mode === 'general' ? 'Général' : 'Parent-enfant'}
                         </td>
+                        <td className="py-2 pr-3">{config.separator}</td>
                         <td className="py-2 pr-3">
                           {config.mode === 'general'
                             ? `${config.maxTokens} tk`
