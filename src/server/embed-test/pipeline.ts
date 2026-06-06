@@ -5,7 +5,7 @@
  */
 import { chunkDocument, type Chunk } from '@/lib/embed-test/chunker'
 import {
-  analyzeTextStructure,
+  analyzePagesStructure,
   diagnosticPromptSummary,
 } from '@/lib/embed-test/diagnostics'
 import { formatDifySettings } from '@/lib/embed-test/dify-settings'
@@ -84,7 +84,7 @@ export async function runEmbedTest(
   const fullText = pages.join('\n\n')
 
   // 1b. Deterministic structure diagnostic (emitted on every run)
-  const diagnostic = analyzeTextStructure(fullText)
+  const diagnostic = analyzePagesStructure(pages)
   emit({ type: 'diagnostic', diagnostic })
 
   // 2. OCR verdict on sampled pages (vision vs native text layer).

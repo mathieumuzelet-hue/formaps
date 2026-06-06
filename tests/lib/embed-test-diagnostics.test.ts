@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+  analyzePagesStructure,
   analyzeTextStructure,
   diagnosticPromptSummary,
 } from '@/lib/embed-test/diagnostics'
@@ -73,6 +74,29 @@ describe('analyzeTextStructure', () => {
     expect(d.paragraphBreaks).toBeGreaterThan(0)
     expect(d.avgParagraphTokens).toBeLessThanOrEqual(500)
     expect(d.verdict).toBe('structured')
+  })
+})
+
+describe('analyzePagesStructure', () => {
+  test('multi-page flat document stays flat (no join artifact)', () => {
+    const flatPage = 'mot '.repeat(200).trim() // one continuous line, no \n at all
+    const d = analyzePagesStructure(Array(10).fill(flatPage))
+    expect(d.paragraphBreaks).toBe(0)
+    expect(d.verdict).toBe('flat')
+  })
+
+  test('aggregates metrics across pages', () => {
+    // Lines kept above SHORT_LINE_CHARS (40) so the table heuristic stays clear;
+    // the load-bearing assertion is paragraphBreaks = 1 per page (no pages-1 join artifact).
+    const structured = `${PARA}\n\n${PARA}`
+    const d = analyzePagesStructure([structured, structured])
+    expect(d.paragraphBreaks).toBe(2) // 1 per page, never pages-1 artifacts
+    expect(d.verdict).toBe('structured')
+  })
+
+  test('analyzeTextStructure(text) === analyzePagesStructure([text])', () => {
+    const text = 'Para un.\n\nPara deux.\nligne'
+    expect(analyzeTextStructure(text)).toEqual(analyzePagesStructure([text]))
   })
 })
 

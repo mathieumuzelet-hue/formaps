@@ -195,6 +195,21 @@ describe('runEmbedTest — diagnostic & refine', () => {
     expect(types.indexOf('diagnostic')).toBeLessThan(types.indexOf('configs'))
   })
 
+  test('multi-page flat document → diagnostic verdict flat, no join artifact', async () => {
+    const flatPage = 'mot '.repeat(200).trim() // one continuous line, no \n
+    extractPages.mockResolvedValueOnce({
+      pages: [flatPage, flatPage, flatPage],
+      totalPages: 3,
+    })
+    const events = await collect()
+    const diag = events.find((e) => e.type === 'diagnostic')
+    expect(diag).toBeDefined()
+    if (diag?.type === 'diagnostic') {
+      expect(diag.diagnostic.verdict).toBe('flat')
+      expect(diag.diagnostic.paragraphBreaks).toBe(0)
+    }
+  })
+
   test('proposeConfigs receives diagnostic summary in extras on every run', async () => {
     await collect()
     const extras = proposeConfigs.mock.calls[0][4] as {

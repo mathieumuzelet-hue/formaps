@@ -11,19 +11,34 @@ const SHORT_LINE_CHARS = 40
 const LONG_PARAGRAPH_TOKENS = 500
 const SHORT_LINE_RATIO_LIMIT = 0.5
 
-export function analyzeTextStructure(text: string): TextDiagnostic {
-  const totalChars = text.length
-  const paragraphBreaks = (text.match(/\n{2,}/g) ?? []).length
-  const lineBreaks = (text.match(/(?<!\n)\n(?!\n)/g) ?? []).length
+/**
+ * Per-page structure analysis. Metrics are aggregated page-by-page so the
+ * caller's page join (`pages.join('\n\n')`) never fabricates paragraph breaks:
+ * a paragraph (and a line) never spans a page boundary.
+ */
+export function analyzePagesStructure(pages: string[]): TextDiagnostic {
+  const totalChars = pages.reduce((sum, p) => sum + p.length, 0)
+  const paragraphBreaks = pages.reduce(
+    (sum, p) => sum + (p.match(/\n{2,}/g) ?? []).length,
+    0,
+  )
+  const lineBreaks = pages.reduce(
+    (sum, p) => sum + (p.match(/(?<!\n)\n(?!\n)/g) ?? []).length,
+    0,
+  )
 
-  const paragraphs = text
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0)
-  const lines = text
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
+  const paragraphs = pages.flatMap((p) =>
+    p
+      .split(/\n{2,}/)
+      .map((para) => para.trim())
+      .filter((para) => para.length > 0),
+  )
+  const lines = pages.flatMap((p) =>
+    p
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0),
+  )
 
   const avgParagraphTokens =
     paragraphs.length === 0
@@ -80,6 +95,11 @@ export function analyzeTextStructure(text: string): TextDiagnostic {
     verdict,
     notes,
   }
+}
+
+/** Single-text convenience wrapper — identical to a one-page document. */
+export function analyzeTextStructure(text: string): TextDiagnostic {
+  return analyzePagesStructure([text])
 }
 
 const VERDICT_LABELS: Record<TextDiagnostic['verdict'], string> = {
