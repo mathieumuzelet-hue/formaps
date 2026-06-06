@@ -217,6 +217,7 @@ const usersRouter = router({
     const fields: Record<string, unknown> = { ...rest, updatedAt: new Date() }
     if (password !== undefined) {
       fields.passwordHash = await hashPassword(password)
+      fields.passwordChangedAt = new Date()
     }
 
     const [row] = await ctx.db
@@ -242,7 +243,7 @@ const usersRouter = router({
 
       const [row] = await ctx.db
         .update(users)
-        .set({ passwordHash, updatedAt: new Date() })
+        .set({ passwordHash, passwordChangedAt: new Date(), updatedAt: new Date() })
         .where(eq(users.id, input.id))
         .returning({ id: users.id, email: users.email })
 
