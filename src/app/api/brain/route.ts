@@ -106,6 +106,7 @@ export async function POST(request: Request): Promise<Response> {
   const decoder = new TextDecoder()
   const hadConversationId = conversationId != null
   let capturedConversationId = false
+  let errorSeen = false
   let buffer = ''
 
   // Accumulated for the fire-and-forget chat_queries INSERT in flush().
@@ -117,12 +118,24 @@ export async function POST(request: Request): Promise<Response> {
   const inspectFrames = (complete: string) => {
     for (const payload of parseSSELines(complete)) {
       const parsed = parseDifyEvent(payload)
+      if (parsed.error && !errorSeen) {
+        errorSeen = true
+        // Self-heal : une erreur in-stream (panne provider, quota) peut laisser
+        // un message assistant VIDE dans la conversation Dify, que le provider
+        // rejettera ensuite à chaque replay (400 invalid_request_assistant_message)
+        // — la conversation est empoisonnée à vie. On purge l'id stocké pour que
+        // la prochaine question reparte sur une conversation propre.
+        console.warn('[brain] event error dans le stream Dify → purge conversation:', parsed.error)
+        void Promise.resolve(
+          db.update(users).set({ difyConversationId: null }).where(eq(users.id, userId)),
+        ).catch(() => {})
+      }
       if (parsed.answerDelta) answer += parsed.answerDelta
       if (parsed.messageId) endMessageId = parsed.messageId
       if (parsed.scores) endScores = parsed.scores
       if (parsed.conversationId) {
         streamConversationId = parsed.conversationId
-        if (!hadConversationId && !capturedConversationId) {
+        if (!hadConversationId && !capturedConversationId && !errorSeen) {
           capturedConversationId = true
           const newId = parsed.conversationId
           // Fire-and-forget: don't await, don't break the stream on error.

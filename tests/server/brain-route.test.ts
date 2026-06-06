@@ -249,6 +249,43 @@ test('log : pas d’insert si le stream se termine sans message_end', async () =
   expect(insertValues).not.toHaveBeenCalled()
 })
 
+test('self-heal : event error dans le stream sur conversation existante → reset dify_conversation_id', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // L'utilisateur a une conversation stockée, désormais empoisonnée côté Dify
+  // (message assistant vide après une panne provider).
+  selectLimit.mockResolvedValue([{ difyConversationId: 'cv-poison' }])
+  const sse =
+    'data: {"event":"error","message":"Assistant message must have either content or tool_calls, but not none."}\n\n'
+  streamChat.mockResolvedValue(new Response(streamFrom(sse), { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'salut' }))
+  expect(res.status).toBe(200)
+  // Les octets sont relayés tels quels (le client affiche l'erreur).
+  expect(await res.text()).toBe(sse)
+  await new Promise((r) => setTimeout(r, 0))
+
+  // La conversation empoisonnée a été purgée : la prochaine question repart propre.
+  expect(updateSet).toHaveBeenCalledWith({ difyConversationId: null })
+})
+
+test('self-heal : event error sur NOUVELLE conversation → l’id capturé n’est pas conservé', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // Pas de conversation stockée : Dify en crée une, puis le modèle échoue.
+  selectLimit.mockResolvedValue([{ difyConversationId: null }])
+  const sse =
+    'data: {"event":"error","message":"quota exceeded","conversation_id":"cv-naissante"}\n\n' +
+    'data: {"event":"message","answer":"","conversation_id":"cv-naissante"}\n\n'
+  streamChat.mockResolvedValue(new Response(streamFrom(sse), { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'salut' }))
+  expect(res.status).toBe(200)
+  await res.text()
+  await new Promise((r) => setTimeout(r, 0))
+
+  // Jamais persisté l'id d'une conversation née en erreur.
+  expect(updateSet).not.toHaveBeenCalledWith({ difyConversationId: 'cv-naissante' })
+})
+
 test('log : un échec d’insert n’affecte ni le statut ni les octets relayés', async () => {
   auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
   insertValues.mockRejectedValueOnce(new Error('db down'))
