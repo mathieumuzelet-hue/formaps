@@ -17,6 +17,7 @@
     "db:seed": "tsx src/server/db/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.101.0",
     "@auth/drizzle-adapter": "^1.11.2",
     "@tanstack/react-query": "^5.101.0",
     "@tiptap/extension-link": "^3.25.0",
@@ -28,10 +29,12 @@
     "@trpc/server": "^11.17.0",
     "argon2": "^0.44.0",
     "drizzle-orm": "^0.45.2",
+    "gpt-tokenizer": "^3.4.0",
     "lucide-react": "^1.17.0",
     "next": "16.2.7",
     "next-auth": "^5.0.0-beta.31",
     "papaparse": "^5.5.3",
+    "pdf-lib": "^1.17.1",
     "postgres": "^3.4.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -39,6 +42,7 @@
     "remark-gfm": "^4.0.1",
     "sanitize-html": "^2.17.4",
     "superjson": "^2.2.6",
+    "unpdf": "^1.6.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {

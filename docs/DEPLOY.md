@@ -86,6 +86,17 @@ Docker. Soit pointer `DIFY_API_URL` vers une URL routable (ex. via le réseau
 Traefik partagé), soit ajouter le réseau de Dify au service `web`. À confirmer
 selon la topologie réseau du VPS.
 
+### Labo d'embed (admin)
+
+L'outil `/admin/embed-test` appelle l'API Claude d'Anthropic (facturé à l'usage,
+indépendant de Dify et de l'abonnement Claude). Poser dans l'UI Dokploy :
+
+- `ANTHROPIC_API_KEY` — clé API console.anthropic.com.
+
+Sans la clé, la page répond « Clé API Anthropic non configurée » (503) ; le
+reste de l'application n'est pas affecté. Aucun document n'est stocké : le PDF
+est traité en mémoire et le rapport est éphémère.
+
 ## 5. Vérifier le déploiement
 
 1. Attendre que le conteneur `web` devienne **`healthy`** (healthcheck
