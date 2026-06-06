@@ -50,6 +50,30 @@ describe('analyzeTextStructure', () => {
     expect(d.avgParagraphTokens).toBe(0)
     expect(d.shortLineRatio).toBe(0)
   })
+
+  // Boundary pins (characterization): the verdict thresholds use `>` not `>=`,
+  // so values landing EXACTLY on the limit must stay `structured`.
+  test('avg paragraph tokens exactly 500 stays structured (pins > vs >=)', () => {
+    const para = 'mot '.repeat(500).trim() // exactly 500 tokens (verified)
+    const text = `${para}\n\n${para}\n\n${para}`
+    const d = analyzeTextStructure(text)
+    expect(d.avgParagraphTokens).toBe(500)
+    expect(d.verdict).toBe('structured')
+  })
+
+  test('shortLineRatio exactly 0.5 stays structured (pins > vs >=)', () => {
+    const short = 'Réf 123 | 4,99 €' // < 40 chars
+    // 5 short + 5 long paragraphs separated by \n\n: paragraphBreaks > 0,
+    // 10 lines (5 short / 5 long) → ratio exactly 0.5, avg tokens ≤ 500.
+    const text = [short, PARA, short, PARA, short, PARA, short, PARA, short, PARA].join(
+      '\n\n',
+    )
+    const d = analyzeTextStructure(text)
+    expect(d.shortLineRatio).toBe(0.5)
+    expect(d.paragraphBreaks).toBeGreaterThan(0)
+    expect(d.avgParagraphTokens).toBeLessThanOrEqual(500)
+    expect(d.verdict).toBe('structured')
+  })
 })
 
 describe('diagnosticPromptSummary', () => {

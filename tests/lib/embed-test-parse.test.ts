@@ -69,4 +69,26 @@ describe('parseEmbedTestEvent', () => {
     expect(parseEmbedTestEvent(JSON.stringify({ type: 'step' }))).toBeNull()
     expect(parseEmbedTestEvent(JSON.stringify(null))).toBeNull()
   })
+
+  test('parses a diagnostic event', () => {
+    const diagnostic = {
+      totalChars: 1200,
+      paragraphBreaks: 4,
+      lineBreaks: 10,
+      avgParagraphTokens: 80,
+      shortLineRatio: 0.1,
+      verdict: 'structured',
+      notes: ['Texte bien structuré'],
+    }
+    const ev = parseEmbedTestEvent(JSON.stringify({ type: 'diagnostic', diagnostic }))
+    expect(ev?.type).toBe('diagnostic')
+  })
+
+  test('rejects a diagnostic event with unknown verdict', () => {
+    expect(
+      parseEmbedTestEvent(
+        JSON.stringify({ type: 'diagnostic', diagnostic: { verdict: 'great' } }),
+      ),
+    ).toBeNull()
+  })
 })
