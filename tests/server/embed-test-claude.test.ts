@@ -7,6 +7,7 @@ import {
   proposeConfigs,
   type AnthropicLike,
 } from '@/server/embed-test/claude'
+import type { TestedConfig } from '@/lib/embed-test/types'
 
 function fakeClient(toolInput: unknown): AnthropicLike {
   return {
@@ -94,6 +95,94 @@ describe('proposeConfigs', () => {
     await expect(
       proposeConfigs(client, 'claude-sonnet-4-6', 'texte', { totalPages: 1, totalChars: 10 }),
     ).rejects.toThrow(/fewer than 2 valid configs/)
+  })
+})
+
+describe('proposeConfigs — refine extras', () => {
+  const tested: TestedConfig[] = [
+    {
+      config: { ...validConfig, label: 'Tour1' } as TestedConfig['config'],
+      score: 3.2,
+      issues: ['phrases coupées p.2'],
+      round: 1,
+    },
+  ]
+
+  test('prompt contains diagnostic and history blocks when provided', async () => {
+    // Both proposed configs differ structurally from `tested` so neither is
+    // deduped — this test only asserts on the prompt, not the survivor count.
+    const client = fakeClient({
+      configs: [
+        { ...validConfig, maxTokens: 512 },
+        { ...validConfig, maxTokens: 2000 },
+      ],
+    })
+    await proposeConfigs(
+      client,
+      'claude-sonnet-4-6',
+      'texte',
+      { totalPages: 1, totalChars: 10 },
+      { diagnosticSummary: 'Verdict : texte plat.', tested },
+    )
+    const params = (client.messages.create as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    const prompt = (params as { messages: Array<{ content: string }> }).messages[0].content
+    expect(prompt).toContain('DIAGNOSTIC DU TEXTE EXTRAIT')
+    expect(prompt).toContain('Verdict : texte plat.')
+    expect(prompt).toContain('CONFIGS DÉJÀ TESTÉES')
+    expect(prompt).toContain('Tour1')
+    expect(prompt).toContain('3.2/10')
+    expect(prompt).toContain('phrases coupées p.2')
+    expect(prompt).toContain('NOUVELLES')
+  })
+
+  test('drops re-proposed configs identical to already-tested ones', async () => {
+    // Claude re-proposes the tested config (different label) + 2 new ones.
+    const client = fakeClient({
+      configs: [
+        { ...validConfig, label: 'copie déguisée' },
+        { ...validConfig, maxTokens: 512 },
+        { ...validConfig, maxTokens: 2000 },
+      ],
+    })
+    const res = await proposeConfigs(
+      client,
+      'claude-sonnet-4-6',
+      'texte',
+      { totalPages: 1, totalChars: 10 },
+      { tested },
+    )
+    expect(res.data).toHaveLength(2)
+    expect(res.data.map((c) => c.maxTokens)).toEqual([512, 2000])
+  })
+
+  test('throws when fewer than 2 NEW configs survive dedup', async () => {
+    const client = fakeClient({
+      configs: [
+        { ...validConfig, label: 'copie' },
+        { ...validConfig, maxTokens: 512 },
+      ],
+    })
+    await expect(
+      proposeConfigs(
+        client,
+        'claude-sonnet-4-6',
+        'texte',
+        { totalPages: 1, totalChars: 10 },
+        { tested },
+      ),
+    ).rejects.toThrow(/fewer than 2 valid configs/)
+  })
+
+  test('without extras, behavior is unchanged (no blocks in prompt)', async () => {
+    const client = fakeClient({ configs: [validConfig, { ...validConfig, maxTokens: 512 }] })
+    await proposeConfigs(client, 'claude-sonnet-4-6', 'texte', {
+      totalPages: 1,
+      totalChars: 10,
+    })
+    const params = (client.messages.create as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    const prompt = (params as { messages: Array<{ content: string }> }).messages[0].content
+    expect(prompt).not.toContain('DIAGNOSTIC DU TEXTE EXTRAIT')
+    expect(prompt).not.toContain('CONFIGS DÉJÀ TESTÉES')
   })
 })
 

@@ -10,9 +10,11 @@ import { z } from 'zod'
 
 import {
   chunkConfigSchema,
+  configKey,
   type ChunkConfig,
   type EmbedTestModelKey,
   type OcrVerdict,
+  type TestedConfig,
 } from '@/lib/embed-test/types'
 import type { Chunk } from '@/lib/embed-test/chunker'
 
@@ -165,12 +167,36 @@ const proposeEnvelopeSchema = z.object({
   configs: z.array(z.unknown()),
 })
 
+/**
+ * Compact French line describing an already-tested config — feeds the refine
+ * history block so Claude avoids re-proposing it.
+ */
+function renderTestedConfig(t: TestedConfig): string {
+  const sizes =
+    t.config.mode === 'general'
+      ? `${t.config.maxTokens} tk, overlap ${t.config.overlapTokens}`
+      : `parent ${t.config.parentMaxTokens} / enfant ${t.config.childMaxTokens} tk`
+  const outcome = t.failed ? 'échec' : `${t.score}/10`
+  const issues = t.issues.length > 0 ? ` — problèmes : ${t.issues.join(' ; ')}` : ''
+  return `- [tour ${t.round}] "${t.config.label}" (${t.config.mode}, sep "${t.config.separator}", ${sizes}) → ${outcome}${issues}`
+}
+
 export async function proposeConfigs(
   client: AnthropicLike,
   model: string,
   textSample: string,
   stats: { totalPages: number; totalChars: number },
+  extras?: { diagnosticSummary?: string; tested?: TestedConfig[] },
 ): Promise<{ data: ChunkConfig[]; usage: Usage }> {
+  const diagnosticBlock = extras?.diagnosticSummary
+    ? `--- DIAGNOSTIC DU TEXTE EXTRAIT ---\n${extras.diagnosticSummary}\n\n`
+    : ''
+  const testedBlock =
+    extras?.tested && extras.tested.length > 0
+      ? '--- CONFIGS DÉJÀ TESTÉES (ne JAMAIS re-proposer une config identique) ---\n' +
+        extras.tested.map(renderTestedConfig).join('\n') +
+        '\n\nPropose des configurations NOUVELLES qui corrigent les problèmes relevés ci-dessus.\n\n'
+      : ''
   const { input, usage } = await forcedToolCall(
     client,
     model,
@@ -180,7 +206,10 @@ export async function proposeConfigs(
       'Propose 4 à 6 configurations de chunking PERTINENTES et CONTRASTÉES à tester, ' +
       "alignées sur les options de l'UI Dify (mode Général ou Parent-enfant, délimiteur, " +
       'longueur max en tokens 100-4000, chevauchement < longueur max, prétraitement). ' +
-      'En mode parent-child, fournis parentMaxTokens et childMaxTokens.\n\n--- DOCUMENT ---\n' +
+      'En mode parent-child, fournis parentMaxTokens et childMaxTokens.\n\n' +
+      diagnosticBlock +
+      testedBlock +
+      '--- DOCUMENT ---\n' +
       textSample,
     'output',
     'Rapporte les configurations de chunking à tester',
@@ -192,7 +221,10 @@ export async function proposeConfigs(
     const parsed = chunkConfigSchema.safeParse(entry)
     if (parsed.success) valid.push(parsed.data)
   }
-  const survivors = valid.slice(0, 6)
+  // Drop configs structurally identical to ones already tested in prior rounds.
+  const testedKeys = new Set((extras?.tested ?? []).map((t) => configKey(t.config)))
+  const fresh = valid.filter((c) => !testedKeys.has(configKey(c)))
+  const survivors = fresh.slice(0, 6)
   if (survivors.length < 2) {
     throw new Error('Claude proposed fewer than 2 valid configs')
   }
