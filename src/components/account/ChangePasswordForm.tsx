@@ -1,5 +1,6 @@
 'use client'
 
+import { signOut } from 'next-auth/react'
 import { useState } from 'react'
 
 import { trpc } from '@/lib/trpc/client'
@@ -16,10 +17,9 @@ export function ChangePasswordForm() {
 
   const change = trpc.account.changePassword.useMutation({
     onSuccess: () => {
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirm('')
-      setClientError(null)
+      // La mutation a bumpé passwordChangedAt : la session courante est morte.
+      // Déconnexion propre + message sur la page de connexion.
+      void signOut({ callbackUrl: '/connexion?changed=1' })
     },
   })
 
@@ -87,11 +87,6 @@ export function ChangePasswordForm() {
       {clientError && <p className="mt-3 text-[13px] text-red">{clientError}</p>}
       {change.isError && (
         <p className="mt-3 text-[13px] text-red">{change.error.message}</p>
-      )}
-      {change.isSuccess && (
-        <p className="mt-3 text-[13px] font-medium text-ink">
-          Mot de passe modifié.
-        </p>
       )}
 
       <button

@@ -3,18 +3,26 @@ import { beforeEach, expect, test, vi } from 'vitest'
 
 import { ChangePasswordForm } from '@/components/account/ChangePasswordForm'
 
-const { changeMutate } = vi.hoisted(() => ({ changeMutate: vi.fn() }))
+const { changeMutate, lastOptions } = vi.hoisted(() => ({
+  changeMutate: vi.fn(),
+  lastOptions: { onSuccess: undefined as undefined | (() => void) },
+}))
+const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }))
+vi.mock('next-auth/react', () => ({ signOut }))
 
 vi.mock('@/lib/trpc/client', () => ({
   trpc: {
     account: {
       changePassword: {
-        useMutation: () => ({
-          mutate: changeMutate,
-          isPending: false,
-          isError: false,
-          isSuccess: false,
-        }),
+        useMutation: (options?: { onSuccess?: () => void }) => {
+          lastOptions.onSuccess = options?.onSuccess
+          return {
+            mutate: changeMutate,
+            isPending: false,
+            isError: false,
+            isSuccess: false,
+          }
+        },
       },
     },
   },
@@ -24,7 +32,11 @@ function fill(label: RegExp, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } })
 }
 
-beforeEach(() => changeMutate.mockClear())
+beforeEach(() => {
+  changeMutate.mockClear()
+  signOut.mockClear()
+  lastOptions.onSuccess = undefined
+})
 
 test('soumet quand les deux nouveaux mdp correspondent', () => {
   render(<ChangePasswordForm />)
@@ -36,6 +48,12 @@ test('soumet quand les deux nouveaux mdp correspondent', () => {
     currentPassword: 'ancien123',
     newPassword: 'nouveau-mdp-1',
   })
+})
+
+test('onSuccess déconnecte vers /connexion?changed=1', () => {
+  render(<ChangePasswordForm />)
+  lastOptions.onSuccess?.()
+  expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/connexion?changed=1' })
 })
 
 test('bloque et affiche une erreur si la confirmation diffère', () => {

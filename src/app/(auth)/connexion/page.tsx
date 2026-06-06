@@ -3,7 +3,12 @@ import { ApsLogo } from '@/components/ui/ApsLogo'
 import { BRoute } from '@/components/route/BRoute'
 import { LoginForm } from '@/components/auth/LoginForm'
 
-export default function ConnexionPage() {
+export default async function ConnexionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ changed?: string }>
+}) {
+  const { changed } = await searchParams
   return (
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
       {/* Left — brand panel */}
@@ -41,6 +46,12 @@ export default function ConnexionPage() {
           <p className="mb-7 mt-[6px] text-[14px] text-sub">
             Avec votre identifiant salarié.
           </p>
+
+          {changed === '1' && (
+            <p className="mb-4 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-medium text-ink">
+              Mot de passe modifié, reconnectez-vous.
+            </p>
+          )}
 
           <LoginForm />
 
