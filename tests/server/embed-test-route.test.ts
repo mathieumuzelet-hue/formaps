@@ -14,7 +14,11 @@ vi.mock('@/server/embed-test/pipeline', () => ({
 
 import { POST } from '@/app/api/admin/embed-test/route'
 
-function makeRequest(opts?: { file?: File | null; model?: string }): Request {
+function makeRequest(opts?: {
+  file?: File | null
+  model?: string
+  refine?: string
+}): Request {
   const form = new FormData()
   const file =
     opts?.file === null
@@ -22,6 +26,7 @@ function makeRequest(opts?: { file?: File | null; model?: string }): Request {
       : (opts?.file ?? new File(['%PDF-1.4 fake'], 'doc.pdf', { type: 'application/pdf' }))
   if (file) form.set('file', file)
   if (opts?.model) form.set('model', opts.model)
+  if (opts?.refine) form.set('refine', opts.refine)
   return new Request('http://localhost/api/admin/embed-test', { method: 'POST', body: form })
 }
 
@@ -107,12 +112,22 @@ describe('POST /api/admin/embed-test — SSE', () => {
     const body = await res.text()
     expect(body).toContain('data: ')
     expect(body).toContain('"type":"step"')
-    expect(runEmbedTest).toHaveBeenCalledWith(expect.anything(), 'sonnet', expect.any(Function))
+    expect(runEmbedTest).toHaveBeenCalledWith(
+      expect.anything(),
+      'sonnet',
+      expect.any(Function),
+      undefined,
+    )
   })
 
   test('model=opus is forwarded', async () => {
     await (await POST(makeRequest({ model: 'opus' }))).text()
-    expect(runEmbedTest).toHaveBeenCalledWith(expect.anything(), 'opus', expect.any(Function))
+    expect(runEmbedTest).toHaveBeenCalledWith(
+      expect.anything(),
+      'opus',
+      expect.any(Function),
+      undefined,
+    )
   })
 
   test('pipeline throw → error event in stream, not a crash', async () => {
@@ -121,5 +136,62 @@ describe('POST /api/admin/embed-test — SSE', () => {
     expect(res.status).toBe(200)
     const body = await res.text()
     expect(body).toContain('"type":"error"')
+  })
+})
+
+const validRefine = JSON.stringify({
+  ocr: { verdict: 'text_ok', reason: 'ok', coverage: 0.9 },
+  tested: [
+    {
+      config: {
+        label: 'A',
+        mode: 'general',
+        separator: '\\n\\n',
+        maxTokens: 1024,
+        overlapTokens: 0,
+        preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+      },
+      score: 3,
+      issues: [],
+      round: 1,
+    },
+  ],
+})
+
+describe('POST /api/admin/embed-test — refine', () => {
+  test('valid refine payload is forwarded to the pipeline', async () => {
+    await (await POST(makeRequest({ refine: validRefine }))).text()
+    expect(runEmbedTest).toHaveBeenCalledWith(
+      expect.anything(),
+      'sonnet',
+      expect.any(Function),
+      expect.objectContaining({ ocr: expect.objectContaining({ verdict: 'text_ok' }) }),
+    )
+  })
+
+  test('absent refine → pipeline called without payload', async () => {
+    await (await POST(makeRequest())).text()
+    expect(runEmbedTest).toHaveBeenCalledWith(
+      expect.anything(),
+      'sonnet',
+      expect.any(Function),
+      undefined,
+    )
+  })
+
+  test('malformed refine JSON → 400', async () => {
+    const res = await POST(makeRequest({ refine: '{oops' }))
+    expect(res.status).toBe(400)
+    expect(runEmbedTest).not.toHaveBeenCalled()
+  })
+
+  test('schema-invalid refine → 400', async () => {
+    const res = await POST(makeRequest({ refine: JSON.stringify({ tested: [] }) }))
+    expect(res.status).toBe(400)
+  })
+
+  test('oversize refine (> 64 KB) → 400', async () => {
+    const res = await POST(makeRequest({ refine: 'x'.repeat(64 * 1024 + 1) }))
+    expect(res.status).toBe(400)
   })
 })
