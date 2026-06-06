@@ -106,13 +106,30 @@ describe('chunkDocument — parent-child', () => {
   }
 
   test('children carry their parent text', () => {
-    const para = 'alpha beta gamma delta epsilon zeta eta theta iota kappa'
-    const text = `${para}\n\n${para}\n\n${para}\n\n${para}`
+    // 8 paragraphs of DISTINCT vocabulary, 12-18 tokens each (132 total) —
+    // verified with gpt-tokenizer. Total >> parentMaxTokens (60) so chunking
+    // MUST yield several parents; each paragraph fits childMaxTokens (20) so
+    // children stay paragraph-aligned and appear verbatim in their parent.
+    const paras = [
+      'alpha beta gamma delta epsilon zeta eta theta iota kappa',
+      'lambda mu nu xi omicron pi rho sigma tau upsilon',
+      'phi chi psi omega digamma stigma koppa sampi san sho',
+      'aleph beth gimel daleth he waw zayin heth teth yodh',
+      'kaph lamedh mem nun samekh ayin pe sadhe qoph resh',
+      'shin taw fehu uruz thurisaz ansuz raido kenaz gebo wunjo',
+      'hagalaz nauthiz isa jera eihwaz perthro algiz',
+      'sowilo tiwaz berkano ehwaz mannaz laguz ingwaz',
+    ]
+    const text = paras.join('\n\n')
     const chunks = chunkDocument(text, pc)
     expect(chunks.length).toBeGreaterThan(1)
+    // Multi-parent guaranteed: a regression that sizes parents with
+    // config.maxTokens (100) or returns the whole document as parentText
+    // cannot satisfy ≥2 distinct parents AND the ≤60-token cap below.
+    expect(new Set(chunks.map((c) => c.parentText)).size).toBeGreaterThanOrEqual(2)
     for (const c of chunks) {
       expect(c.parentText).toBeDefined()
-      expect(c.parentText).toContain(c.text.split(' ')[0])
+      expect(c.parentText).toContain(c.text)
       expect(countTokens(c.text)).toBeLessThanOrEqual(20)
       expect(countTokens(c.parentText!)).toBeLessThanOrEqual(60)
     }
@@ -127,8 +144,11 @@ describe('chunkDocument — parent-child', () => {
   })
 
   test('childMaxTokens > parentMaxTokens degenerates to one child per parent', () => {
-    // Schema-invalid (childMaxTokens > parentMaxTokens) but the chunker must
-    // tolerate raw configs without throwing.
+    // childMaxTokens > parentMaxTokens is schema-LEGAL in general: the schema
+    // has no child < parent refinement, so this shape can come from
+    // Claude-proposed configs and the chunker must tolerate it without
+    // throwing. (This particular config only fails schema validation because
+    // parentMaxTokens 60 < min 200 — unrelated to the child/parent ordering.)
     const degenerate: ChunkConfig = {
       ...base,
       mode: 'parent-child',
