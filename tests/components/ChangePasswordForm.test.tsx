@@ -52,6 +52,7 @@ test('soumet quand les deux nouveaux mdp correspondent', () => {
 
 test('onSuccess déconnecte vers /connexion?changed=1', () => {
   render(<ChangePasswordForm />)
+  expect(lastOptions.onSuccess).toBeDefined()
   lastOptions.onSuccess?.()
   expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/connexion?changed=1' })
 })

@@ -48,7 +48,7 @@ export default async function ConnexionPage({
           </p>
 
           {changed === '1' && (
-            <p className="mb-4 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-medium text-ink">
+            <p role="status" className="mb-4 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-medium text-ink">
               Mot de passe modifié, reconnectez-vous.
             </p>
           )}
