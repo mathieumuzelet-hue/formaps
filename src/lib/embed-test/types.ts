@@ -44,6 +44,7 @@ export type ChunkConfig = z.infer<typeof chunkConfigSchema>
  * Identité structurelle d'une config — utilisé pour dédupliquer les
  * propositions de Claude entre tours. Ignore label/rationale volontairement.
  */
+// Keep field list in sync with chunkConfigSchema's structural fields.
 export function configKey(c: ChunkConfig): string {
   return JSON.stringify([
     c.mode,
