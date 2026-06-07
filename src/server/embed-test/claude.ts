@@ -285,12 +285,20 @@ export async function proposeConfigs(
     '.\nPropose des configurations STRUCTURELLEMENT DIFFÉRENTES : autres séparateurs ' +
     '(par phrase ". ", par ligne "\\n", marqueurs "###"), autres tailles, autre mode ' +
     '(general ↔ parent-child), autres overlaps.\n\n'
-  const second = await proposeAttempt(
-    client,
-    model,
-    basePrompt + feedbackBlock + docBlock,
-    testedKeys,
-  )
+  // A retry failure must not lose attempt 1's survivors: treat an API-level
+  // throw as an empty attempt so the merge below can still return them.
+  let second: ProposeAttempt
+  try {
+    second = await proposeAttempt(
+      client,
+      model,
+      basePrompt + feedbackBlock + docBlock,
+      testedKeys,
+    )
+  } catch (err) {
+    console.error('[embed-test] retry proposeAttempt a échoué:', err)
+    second = { fresh: [], duplicates: [], usage: { inputTokens: 0, outputTokens: 0 } }
+  }
 
   // Union of fresh from both attempts, deduped vs tested AND vs each other.
   const seen = new Set<string>()

@@ -216,6 +216,64 @@ describe('proposeConfigs — refine extras', () => {
     expect(retryPrompt).toContain('copie A')
   })
 
+  test('refine: attempt 1 yields 1 fresh, retry call REJECTS → resolves with attempt-1 fresh (2 calls, attempt-1 usage)', async () => {
+    const create = vi.fn()
+    // Attempt 1: 1 fresh (maxTokens 512) + 1 duplicate (identical to `tested`).
+    create.mockResolvedValueOnce({
+      content: [
+        {
+          type: 'tool_use',
+          id: 't1',
+          name: 'output',
+          input: { configs: [{ ...validConfig, maxTokens: 512 }, { ...validConfig, label: 'copie' }] },
+        },
+      ],
+      usage: { input_tokens: 100, output_tokens: 50 },
+    })
+    // Attempt 2 (retry): API-level failure.
+    create.mockRejectedValueOnce(new Error('529 overloaded'))
+    const client = { messages: { create } } as unknown as AnthropicLike
+    const res = await proposeConfigs(
+      client,
+      'claude-sonnet-4-6',
+      'texte',
+      { totalPages: 1, totalChars: 10 },
+      { tested },
+    )
+    expect(res.data).toHaveLength(1)
+    expect(res.data[0].maxTokens).toBe(512)
+    expect(create).toHaveBeenCalledTimes(2)
+    // Usage reflects attempt 1 only — the failed retry contributes nothing.
+    expect(res.usage).toEqual({ inputTokens: 100, outputTokens: 50 })
+  })
+
+  test('refine: attempt 1 all-duplicates, retry call REJECTS → still throws (2 calls)', async () => {
+    const create = vi.fn()
+    create.mockResolvedValueOnce({
+      content: [
+        {
+          type: 'tool_use',
+          id: 't1',
+          name: 'output',
+          input: { configs: [{ ...validConfig, label: 'copie' }, { ...validConfig, label: 'copie 2' }] },
+        },
+      ],
+      usage: { input_tokens: 100, output_tokens: 50 },
+    })
+    create.mockRejectedValueOnce(new Error('529 overloaded'))
+    const client = { messages: { create } } as unknown as AnthropicLike
+    await expect(
+      proposeConfigs(
+        client,
+        'claude-sonnet-4-6',
+        'texte',
+        { totalPages: 1, totalChars: 10 },
+        { tested },
+      ),
+    ).rejects.toThrow(/no new configs after retry/)
+    expect(create).toHaveBeenCalledTimes(2)
+  })
+
   test('refine: both attempts all-duplicates → rejects after retry (2 calls)', async () => {
     const dup = { configs: [{ ...validConfig, label: 'copie' }, { ...validConfig, label: 'copie 2' }] }
     const client = fakeClientSequence([dup, dup])
