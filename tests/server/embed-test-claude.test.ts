@@ -20,6 +20,33 @@ function fakeClient(toolInput: unknown): AnthropicLike {
   } as unknown as AnthropicLike
 }
 
+/**
+ * Fake client whose `create` resolves a DIFFERENT payload per call (one entry
+ * per attempt). Each entry may be a bare tool input (defaults to 100/50 usage)
+ * or `{ input, usage: { input_tokens, output_tokens } }` to control usage.
+ */
+function fakeClientSequence(
+  inputs: Array<unknown | { input: unknown; usage: { input_tokens: number; output_tokens: number } }>,
+): AnthropicLike {
+  const create = vi.fn()
+  for (const entry of inputs) {
+    const isWrapped =
+      entry !== null &&
+      typeof entry === 'object' &&
+      'input' in (entry as Record<string, unknown>) &&
+      'usage' in (entry as Record<string, unknown>)
+    const input = isWrapped ? (entry as { input: unknown }).input : entry
+    const usage = isWrapped
+      ? (entry as { usage: { input_tokens: number; output_tokens: number } }).usage
+      : { input_tokens: 100, output_tokens: 50 }
+    create.mockResolvedValueOnce({
+      content: [{ type: 'tool_use', id: 't1', name: 'output', input }],
+      usage,
+    })
+  }
+  return { messages: { create } } as unknown as AnthropicLike
+}
+
 const validConfig = {
   label: 'Standard',
   mode: 'general',
@@ -155,13 +182,86 @@ describe('proposeConfigs — refine extras', () => {
     expect(res.data.map((c) => c.maxTokens)).toEqual([512, 2000])
   })
 
-  test('throws when fewer than 2 NEW configs survive dedup', async () => {
-    const client = fakeClient({
-      configs: [
-        { ...validConfig, label: 'copie' },
-        { ...validConfig, maxTokens: 512 },
+  test('refine: first attempt all-duplicates, retry yields 1 fresh → resolves with it (2 calls, summed usage)', async () => {
+    const client = fakeClientSequence([
+      // Attempt 1: both configs structurally identical to `tested` → all dropped.
+      {
+        input: { configs: [{ ...validConfig, label: 'copie A' }, { ...validConfig, label: 'copie B' }] },
+        usage: { input_tokens: 100, output_tokens: 50 },
+      },
+      // Attempt 2 (retry): one genuinely new config.
+      {
+        input: { configs: [{ ...validConfig, maxTokens: 512 }] },
+        usage: { input_tokens: 100, output_tokens: 50 },
+      },
+    ])
+    const res = await proposeConfigs(
+      client,
+      'claude-sonnet-4-6',
+      'texte',
+      { totalPages: 1, totalChars: 10 },
+      { tested },
+    )
+    expect(res.data).toHaveLength(1)
+    expect(res.data[0].maxTokens).toBe(512)
+    const create = client.messages.create as ReturnType<typeof vi.fn>
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(res.usage).toEqual({ inputTokens: 200, outputTokens: 100 })
+    // The retry prompt carries the rejected-duplicates feedback block.
+    const retryParams = create.mock.calls[1][0] as { messages: Array<{ content: string }> }
+    const retryPrompt = retryParams.messages[0].content
+    expect(retryPrompt).toContain('PROPOSITIONS REJETÉES')
+    expect(retryPrompt).toContain('STRUCTURELLEMENT DIFFÉRENTES')
+    // The duplicate's label (as actually proposed) is echoed back.
+    expect(retryPrompt).toContain('copie A')
+  })
+
+  test('refine: attempt 1 yields 1 fresh, retry call REJECTS → resolves with attempt-1 fresh (2 calls, attempt-1 usage)', async () => {
+    const create = vi.fn()
+    // Attempt 1: 1 fresh (maxTokens 512) + 1 duplicate (identical to `tested`).
+    create.mockResolvedValueOnce({
+      content: [
+        {
+          type: 'tool_use',
+          id: 't1',
+          name: 'output',
+          input: { configs: [{ ...validConfig, maxTokens: 512 }, { ...validConfig, label: 'copie' }] },
+        },
       ],
+      usage: { input_tokens: 100, output_tokens: 50 },
     })
+    // Attempt 2 (retry): API-level failure.
+    create.mockRejectedValueOnce(new Error('529 overloaded'))
+    const client = { messages: { create } } as unknown as AnthropicLike
+    const res = await proposeConfigs(
+      client,
+      'claude-sonnet-4-6',
+      'texte',
+      { totalPages: 1, totalChars: 10 },
+      { tested },
+    )
+    expect(res.data).toHaveLength(1)
+    expect(res.data[0].maxTokens).toBe(512)
+    expect(create).toHaveBeenCalledTimes(2)
+    // Usage reflects attempt 1 only — the failed retry contributes nothing.
+    expect(res.usage).toEqual({ inputTokens: 100, outputTokens: 50 })
+  })
+
+  test('refine: attempt 1 all-duplicates, retry call REJECTS → still throws (2 calls)', async () => {
+    const create = vi.fn()
+    create.mockResolvedValueOnce({
+      content: [
+        {
+          type: 'tool_use',
+          id: 't1',
+          name: 'output',
+          input: { configs: [{ ...validConfig, label: 'copie' }, { ...validConfig, label: 'copie 2' }] },
+        },
+      ],
+      usage: { input_tokens: 100, output_tokens: 50 },
+    })
+    create.mockRejectedValueOnce(new Error('529 overloaded'))
+    const client = { messages: { create } } as unknown as AnthropicLike
     await expect(
       proposeConfigs(
         client,
@@ -170,7 +270,48 @@ describe('proposeConfigs — refine extras', () => {
         { totalPages: 1, totalChars: 10 },
         { tested },
       ),
+    ).rejects.toThrow(/no new configs after retry/)
+    expect(create).toHaveBeenCalledTimes(2)
+  })
+
+  test('refine: both attempts all-duplicates → rejects after retry (2 calls)', async () => {
+    const dup = { configs: [{ ...validConfig, label: 'copie' }, { ...validConfig, label: 'copie 2' }] }
+    const client = fakeClientSequence([dup, dup])
+    await expect(
+      proposeConfigs(
+        client,
+        'claude-sonnet-4-6',
+        'texte',
+        { totalPages: 1, totalChars: 10 },
+        { tested },
+      ),
+    ).rejects.toThrow(/no new configs after retry/)
+    expect(client.messages.create as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2)
+  })
+
+  test('refine: first attempt has 2 fresh → no retry (1 call)', async () => {
+    const client = fakeClientSequence([
+      { configs: [{ ...validConfig, maxTokens: 512 }, { ...validConfig, maxTokens: 2000 }] },
+    ])
+    const res = await proposeConfigs(
+      client,
+      'claude-sonnet-4-6',
+      'texte',
+      { totalPages: 1, totalChars: 10 },
+      { tested },
+    )
+    expect(res.data).toHaveLength(2)
+    expect(client.messages.create as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1)
+  })
+
+  test('plain run: fewer than 2 valid → throws, no retry (1 call)', async () => {
+    const client = fakeClientSequence([
+      { configs: [validConfig, { ...validConfig, maxTokens: 99999 }] },
+    ])
+    await expect(
+      proposeConfigs(client, 'claude-sonnet-4-6', 'texte', { totalPages: 1, totalChars: 10 }),
     ).rejects.toThrow(/fewer than 2 valid configs/)
+    expect(client.messages.create as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1)
   })
 
   test('without extras, behavior is unchanged (no blocks in prompt)', async () => {

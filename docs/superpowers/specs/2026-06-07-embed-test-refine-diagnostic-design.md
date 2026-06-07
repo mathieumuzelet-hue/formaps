@@ -174,7 +174,7 @@ bestSoFar: { config: ChunkConfig; score: number; rationale: string;
 | Cas | Comportement |
 |---|---|
 | `refine` non-string / > 64 Ko / JSON invalide / schéma KO | 400 `invalid_refine` côté serveur ; côté client le 400 garde le message générique existant de `httpErrorText` (pas de nouveau mapping — le cas est inatteignable via l'UI) |
-| Toutes les propositions raffinées déjà testées (dédup → <2) | throw existant → `propose_failed` (FR « La proposition de configurations… a échoué ») — acceptable, l'admin relance |
+| Toutes les propositions raffinées déjà testées (dédup → <2 fraîches au tour 1) | **Retry unique avec feedback** : un 2ᵉ appel est émis dont le prompt liste les configs rejetées (bloc « ATTENTION : PROPOSITIONS REJETÉES ») et exige des configs STRUCTURELLEMENT DIFFÉRENTES. En raffinement le seuil d'acceptation tombe à **≥1 config fraîche** (union dédupliquée des deux tentatives). `throw` (→ `propose_failed`) **seulement si 0** config fraîche après le retry (`no new configs after retry`). Le run simple (sans `tested`) garde le seuil ≥2 et ne retente jamais. |
 | Fichier désélectionné avant Raffiner | Bouton désactivé + hint (jamais d'appel) |
 
 ## 9. Tests (vitest, conventions du repo)

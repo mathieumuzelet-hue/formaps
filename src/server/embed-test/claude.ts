@@ -181,6 +181,55 @@ function renderTestedConfig(t: TestedConfig): string {
   return `- [tour ${t.round}] "${t.config.label}" (${t.config.mode}, sep "${t.config.separator}", ${sizes}) → ${outcome}${issues}`
 }
 
+/**
+ * Compact French line describing a config Claude re-proposed that we had to
+ * drop (structurally identical to an already-tested one) — feeds the refine
+ * RETRY feedback block.
+ */
+function renderRejectedConfig(c: ChunkConfig): string {
+  const sizes =
+    c.mode === 'general'
+      ? `${c.maxTokens} tk, overlap ${c.overlapTokens}`
+      : `parent ${c.parentMaxTokens} / enfant ${c.childMaxTokens} tk`
+  return `"${c.label}" (${c.mode}, sep "${c.separator}", ${sizes})`
+}
+
+/** Result of one proposal attempt: validated+deduped configs split by outcome. */
+type ProposeAttempt = {
+  /** Validated configs NOT structurally identical to any already-tested one. */
+  fresh: ChunkConfig[]
+  /** Validated configs dropped because identical to an already-tested one. */
+  duplicates: ChunkConfig[]
+  usage: Usage
+}
+
+/** One forced tool call + per-config safeParse + dedup-vs-tested. */
+async function proposeAttempt(
+  client: AnthropicLike,
+  model: string,
+  prompt: string,
+  testedKeys: Set<string>,
+): Promise<ProposeAttempt> {
+  const { input, usage } = await forcedToolCall(
+    client,
+    model,
+    prompt,
+    'output',
+    'Rapporte les configurations de chunking à tester',
+    PROPOSE_TOOL_SCHEMA,
+  )
+  const envelope = proposeEnvelopeSchema.parse(input)
+  const fresh: ChunkConfig[] = []
+  const duplicates: ChunkConfig[] = []
+  for (const entry of envelope.configs) {
+    const parsed = chunkConfigSchema.safeParse(entry)
+    if (!parsed.success) continue
+    if (testedKeys.has(configKey(parsed.data))) duplicates.push(parsed.data)
+    else fresh.push(parsed.data)
+  }
+  return { fresh, duplicates, usage }
+}
+
 export async function proposeConfigs(
   client: AnthropicLike,
   model: string,
@@ -191,44 +240,83 @@ export async function proposeConfigs(
   const diagnosticBlock = extras?.diagnosticSummary
     ? `--- DIAGNOSTIC DU TEXTE EXTRAIT ---\n${extras.diagnosticSummary}\n\n`
     : ''
-  const testedBlock =
-    extras?.tested && extras.tested.length > 0
-      ? '--- CONFIGS DÉJÀ TESTÉES (ne JAMAIS re-proposer une config identique) ---\n' +
-        extras.tested.map(renderTestedConfig).join('\n') +
-        '\n\nPropose des configurations NOUVELLES qui corrigent les problèmes relevés ci-dessus.\n\n'
-      : ''
-  const { input, usage } = await forcedToolCall(
-    client,
-    model,
+  const isRefine = !!extras?.tested && extras.tested.length > 0
+  const testedBlock = isRefine
+    ? '--- CONFIGS DÉJÀ TESTÉES (ne JAMAIS re-proposer une config identique) ---\n' +
+      extras!.tested!.map(renderTestedConfig).join('\n') +
+      '\n\nPropose des configurations NOUVELLES qui corrigent les problèmes relevés ci-dessus.\n\n'
+    : ''
+  const basePrompt =
     "Tu prépares l'ingestion d'un document dans une base de connaissance Dify (RAG). " +
-      'Analyse la structure du texte ci-dessous (titres, paragraphes, listes, tableaux, ' +
-      `densité). Document : ${stats.totalPages} pages, ${stats.totalChars} caractères. ` +
-      'Propose 4 à 6 configurations de chunking PERTINENTES et CONTRASTÉES à tester, ' +
-      "alignées sur les options de l'UI Dify (mode Général ou Parent-enfant, délimiteur, " +
-      'longueur max en tokens 100-4000, chevauchement < longueur max, prétraitement). ' +
-      'En mode parent-child, fournis parentMaxTokens et childMaxTokens.\n\n' +
-      diagnosticBlock +
-      testedBlock +
-      '--- DOCUMENT ---\n' +
-      textSample,
-    'output',
-    'Rapporte les configurations de chunking à tester',
-    PROPOSE_TOOL_SCHEMA,
-  )
-  const envelope = proposeEnvelopeSchema.parse(input)
-  const valid: ChunkConfig[] = []
-  for (const entry of envelope.configs) {
-    const parsed = chunkConfigSchema.safeParse(entry)
-    if (parsed.success) valid.push(parsed.data)
-  }
-  // Drop configs structurally identical to ones already tested in prior rounds.
+    'Analyse la structure du texte ci-dessous (titres, paragraphes, listes, tableaux, ' +
+    `densité). Document : ${stats.totalPages} pages, ${stats.totalChars} caractères. ` +
+    'Propose 4 à 6 configurations de chunking PERTINENTES et CONTRASTÉES à tester, ' +
+    "alignées sur les options de l'UI Dify (mode Général ou Parent-enfant, délimiteur, " +
+    'longueur max en tokens 100-4000, chevauchement < longueur max, prétraitement). ' +
+    'En mode parent-child, fournis parentMaxTokens et childMaxTokens.\n\n' +
+    diagnosticBlock +
+    testedBlock
+
+  const docBlock = '--- DOCUMENT ---\n' + textSample
   const testedKeys = new Set((extras?.tested ?? []).map((t) => configKey(t.config)))
-  const fresh = valid.filter((c) => !testedKeys.has(configKey(c)))
-  const survivors = fresh.slice(0, 6)
-  if (survivors.length < 2) {
-    throw new Error('Claude proposed fewer than 2 valid configs')
+
+  const first = await proposeAttempt(client, model, basePrompt + docBlock, testedKeys)
+
+  // Plain run: single attempt, threshold ≥2 (byte-identical legacy behavior).
+  if (!isRefine) {
+    const survivors = first.fresh.slice(0, 6)
+    if (survivors.length < 2) {
+      throw new Error('Claude proposed fewer than 2 valid configs')
+    }
+    return { data: survivors, usage: first.usage }
   }
-  return { data: survivors, usage }
+
+  // Refine run: accept the first attempt as soon as it yields ≥2 fresh configs.
+  if (first.fresh.length >= 2) {
+    return { data: first.fresh.slice(0, 6), usage: first.usage }
+  }
+
+  // Otherwise, one retry with explicit feedback on the rejected duplicates.
+  const feedbackBlock =
+    '--- ATTENTION : PROPOSITIONS REJETÉES ---\n' +
+    `Tu viens de proposer ${first.duplicates.length} configuration(s) STRUCTURELLEMENT ` +
+    'IDENTIQUES à des configs déjà testées : ' +
+    first.duplicates.map(renderRejectedConfig).join(', ') +
+    '.\nPropose des configurations STRUCTURELLEMENT DIFFÉRENTES : autres séparateurs ' +
+    '(par phrase ". ", par ligne "\\n", marqueurs "###"), autres tailles, autre mode ' +
+    '(general ↔ parent-child), autres overlaps.\n\n'
+  // A retry failure must not lose attempt 1's survivors: treat an API-level
+  // throw as an empty attempt so the merge below can still return them.
+  let second: ProposeAttempt
+  try {
+    second = await proposeAttempt(
+      client,
+      model,
+      basePrompt + feedbackBlock + docBlock,
+      testedKeys,
+    )
+  } catch (err) {
+    console.error('[embed-test] retry proposeAttempt a échoué:', err)
+    second = { fresh: [], duplicates: [], usage: { inputTokens: 0, outputTokens: 0 } }
+  }
+
+  // Union of fresh from both attempts, deduped vs tested AND vs each other.
+  const seen = new Set<string>()
+  const merged: ChunkConfig[] = []
+  for (const c of [...first.fresh, ...second.fresh]) {
+    const key = configKey(c)
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(c)
+  }
+  const usage: Usage = {
+    inputTokens: first.usage.inputTokens + second.usage.inputTokens,
+    outputTokens: first.usage.outputTokens + second.usage.outputTokens,
+  }
+  if (merged.length < 1) {
+    throw new Error('Claude proposed no new configs after retry')
+  }
+  return { data: merged.slice(0, 6), usage }
 }
 
 // --------------------------------------------------------------- judgeConfig
