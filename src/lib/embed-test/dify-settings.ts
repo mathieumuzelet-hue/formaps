@@ -3,6 +3,7 @@
  * Deterministic (built in code, not by Claude) so the recommendation always
  * maps 1:1 to the knobs the admin sets manually in Dify.
  */
+import { escapeSeparator } from '@/lib/embed-test/chunker'
 import type { ChunkConfig, OcrVerdict } from '@/lib/embed-test/types'
 
 function ouiNon(v: boolean): string {
@@ -13,12 +14,12 @@ export function formatDifySettings(config: ChunkConfig, ocr: OcrVerdict): string
   const lines: string[] = []
   if (config.mode === 'general') {
     lines.push('Mode : Général')
-    lines.push(`Délimiteur : ${config.separator}`)
+    lines.push(`Délimiteur : ${escapeSeparator(config.separator)}`)
     lines.push(`Longueur max : ${config.maxTokens} tokens`)
     lines.push(`Chevauchement : ${config.overlapTokens} tokens`)
   } else {
     lines.push('Mode : Parent-enfant')
-    lines.push(`Délimiteur : ${config.separator}`)
+    lines.push(`Délimiteur : ${escapeSeparator(config.separator)}`)
     lines.push(`Parent : ${config.parentMaxTokens} tokens`)
     lines.push(`Enfant : ${config.childMaxTokens} tokens`)
   }

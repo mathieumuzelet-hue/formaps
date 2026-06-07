@@ -68,6 +68,16 @@ describe('refinePayloadSchema', () => {
         .success,
     ).toBe(false)
   })
+
+  test('accepts an optional manual config', () => {
+    expect(
+      refinePayloadSchema.safeParse({ ocr, tested: [tested], manual: valid }).success,
+    ).toBe(true)
+    expect(
+      refinePayloadSchema.safeParse({ ocr, tested: [tested], manual: { mode: 'general' } })
+        .success,
+    ).toBe(false)
+  })
 })
 
 describe('configKey', () => {

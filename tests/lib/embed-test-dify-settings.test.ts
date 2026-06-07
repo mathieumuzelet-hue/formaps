@@ -25,6 +25,12 @@ describe('formatDifySettings', () => {
     expect(out).toContain('Pipeline : extraction texte (OCR inutile)')
   })
 
+  test('renders real-newline separators in escaped form', () => {
+    const out = formatDifySettings({ ...config, separator: '\n\n' }, ocrOk)
+    expect(out).toContain('Délimiteur : \\n\\n')
+    expect(out.split('\n').some((l) => l.trim() === '')).toBe(false) // no broken blank line
+  })
+
   test('parent-child mode + OCR needed', () => {
     const out = formatDifySettings(
       { ...config, mode: 'parent-child', parentMaxTokens: 2000, childMaxTokens: 400 },
