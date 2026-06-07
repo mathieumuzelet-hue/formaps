@@ -46,6 +46,50 @@ describe('EmbedTestAdmin', () => {
     ).toBeInTheDocument()
   })
 
+  test('manual config form: toggle present, form fields render, separator shown escaped', async () => {
+    const { initialState } = await import('@/lib/embed-test/useEmbedTest')
+    const cfg = {
+      label: 'A',
+      mode: 'general' as const,
+      separator: '\n', // REAL newline → must render escaped in the table
+      maxTokens: 1024,
+      overlapTokens: 0,
+      preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+    }
+    mockState = {
+      ...initialState,
+      status: 'done',
+      round: 1,
+      configs: [cfg],
+      results: [{ index: 0, score: 8, issues: [], summary: 's', chunkCount: 3 }],
+      report: {
+        ocr: { verdict: 'text_ok', reason: 'r', coverage: 0.9 },
+        ranking: [0],
+        recommendation: { configIndex: 0, difySettings: 's', rationale: 'r' },
+        usage: { inputTokens: 1, outputTokens: 2 },
+      },
+      history: [{ config: cfg, score: 8, issues: [], round: 1 }],
+      bestSoFar: {
+        config: cfg,
+        score: 8,
+        rationale: 'r',
+        round: 1,
+        ocr: { verdict: 'text_ok', reason: 'r', coverage: 0.9 },
+      },
+    }
+    render(<EmbedTestAdmin />)
+    // (c) Délimiteur column shows the ESCAPED form of a real-newline separator
+    expect(screen.getByText('\\n')).toBeInTheDocument()
+    // (a) toggle present
+    const toggle = screen.getByRole('button', { name: /Tester ma config/i })
+    expect(toggle).toBeInTheDocument()
+    // (b) after click the form labels render
+    fireEvent.click(toggle)
+    expect(screen.getByLabelText(/Séparateur/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Longueur max/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Chevauchement/i)).toBeInTheDocument()
+  })
+
   test('renders the diagnostic card when a diagnostic is present', async () => {
     const { initialState } = await import('@/lib/embed-test/useEmbedTest')
     mockState = {
