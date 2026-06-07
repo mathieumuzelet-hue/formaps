@@ -27,7 +27,7 @@ vi.mock('@/server/embed-test/claude', async (importOriginal) => {
 
 import { runEmbedTest, sampleChunks } from '@/server/embed-test/pipeline'
 import { PdfUnreadableError } from '@/server/embed-test/extract'
-import type { ChunkConfig, EmbedTestEvent } from '@/lib/embed-test/types'
+import type { ChunkConfig, EmbedTestEvent, RefinePayload } from '@/lib/embed-test/types'
 
 const config = (label: string): ChunkConfig => ({
   label,
@@ -61,6 +61,12 @@ beforeEach(() => {
 async function collect(): Promise<EmbedTestEvent[]> {
   const events: EmbedTestEvent[] = []
   await runEmbedTest(new Uint8Array([0]), 'sonnet', (e) => events.push(e))
+  return events
+}
+
+async function collectRefine(refine: RefinePayload): Promise<EmbedTestEvent[]> {
+  const events: EmbedTestEvent[] = []
+  await runEmbedTest(new Uint8Array([0]), 'sonnet', (e) => events.push(e), refine)
   return events
 }
 
@@ -170,6 +176,69 @@ describe('runEmbedTest — failures', () => {
       expect(report.report.ocr.verdict).toBe('ocr_needed')
       expect(report.report.recommendation.difySettings).toContain('ACTIVEZ le pipeline OCR')
     }
+  })
+})
+
+describe('runEmbedTest — diagnostic & refine', () => {
+  test('every run emits a diagnostic event after extraction', async () => {
+    const events = await collect()
+    const diag = events.find((e) => e.type === 'diagnostic')
+    expect(diag).toBeDefined()
+    if (diag?.type === 'diagnostic') {
+      expect(diag.diagnostic.totalChars).toBeGreaterThan(0)
+      expect(['structured', 'weakly_structured', 'flat']).toContain(
+        diag.diagnostic.verdict,
+      )
+    }
+    // diagnostic arrives before the configs event
+    const types = events.map((e) => e.type)
+    expect(types.indexOf('diagnostic')).toBeLessThan(types.indexOf('configs'))
+  })
+
+  test('multi-page flat document → diagnostic verdict flat, no join artifact', async () => {
+    const flatPage = 'mot '.repeat(200).trim() // one continuous line, no \n
+    extractPages.mockResolvedValueOnce({
+      pages: [flatPage, flatPage, flatPage],
+      totalPages: 3,
+    })
+    const events = await collect()
+    const diag = events.find((e) => e.type === 'diagnostic')
+    expect(diag).toBeDefined()
+    if (diag?.type === 'diagnostic') {
+      expect(diag.diagnostic.verdict).toBe('flat')
+      expect(diag.diagnostic.paragraphBreaks).toBe(0)
+    }
+  })
+
+  test('proposeConfigs receives diagnostic summary in extras on every run', async () => {
+    await collect()
+    const extras = proposeConfigs.mock.calls[0][4] as {
+      diagnosticSummary?: string
+      tested?: unknown[]
+    }
+    expect(extras.diagnosticSummary).toContain('Verdict')
+    expect(extras.tested).toBeUndefined()
+  })
+
+  test('refine run: ocrCompare and buildPdfSample are never called, verdict reused', async () => {
+    const refine: RefinePayload = {
+      ocr: { verdict: 'ocr_needed', reason: 'scanné (tour 1)', coverage: 0.1 },
+      tested: [{ config: config('A'), score: 2.5, issues: ['coupé'], round: 1 }],
+    }
+    const events = await collectRefine(refine)
+    expect(ocrCompare).not.toHaveBeenCalled()
+    expect(buildPdfSample).not.toHaveBeenCalled()
+    const report = events.find((e) => e.type === 'report')
+    if (report?.type === 'report') {
+      expect(report.report.ocr.verdict).toBe('ocr_needed')
+      expect(report.report.ocr.reason).toBe('scanné (tour 1)')
+      // usage: 1 propose + 2 judges only (no ocr call)
+      expect(report.report.usage).toEqual({ inputTokens: 30, outputTokens: 15 })
+    }
+    const ocrStep = events.find((e) => e.type === 'step' && e.id === 'ocr')
+    expect(ocrStep?.type === 'step' && ocrStep.label).toContain('réutilisé')
+    const extras = proposeConfigs.mock.calls[0][4] as { tested?: unknown[] }
+    expect(extras.tested).toHaveLength(1)
   })
 })
 

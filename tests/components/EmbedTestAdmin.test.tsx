@@ -1,13 +1,23 @@
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, test, vi } from 'vitest'
 
+let mockState: import('@/lib/embed-test/useEmbedTest').EmbedTestState | undefined
 vi.mock('@/lib/embed-test/useEmbedTest', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/lib/embed-test/useEmbedTest')>()
+  const actual = await importOriginal<typeof import('@/lib/embed-test/useEmbedTest')>()
   return {
     ...actual,
-    useEmbedTest: () => ({ state: actual.initialState, run: vi.fn(), reset: vi.fn() }),
+    // mockState is read at RENDER time (after module init) — never assign it
+    // inside this hoisted factory (TDZ trap with `let`).
+    useEmbedTest: () => ({
+      state: mockState ?? actual.initialState,
+      run: vi.fn(),
+      reset: vi.fn(),
+    }),
   }
+})
+
+afterEach(() => {
+  mockState = undefined
 })
 
 import { EmbedTestAdmin } from '@/components/admin/EmbedTestAdmin'
@@ -34,5 +44,26 @@ describe('EmbedTestAdmin', () => {
     expect(
       screen.getByText(/Fichier trop volumineux \(25 Mo max\)\./i),
     ).toBeInTheDocument()
+  })
+
+  test('renders the diagnostic card when a diagnostic is present', async () => {
+    const { initialState } = await import('@/lib/embed-test/useEmbedTest')
+    mockState = {
+      ...initialState,
+      status: 'running',
+      diagnostic: {
+        totalChars: 1000,
+        paragraphBreaks: 0,
+        lineBreaks: 12,
+        avgParagraphTokens: 800,
+        shortLineRatio: 0.2,
+        verdict: 'flat',
+        notes: ['Aucun saut de paragraphe (\\n\\n) détecté'],
+      },
+    }
+    render(<EmbedTestAdmin />)
+    expect(screen.getByText(/Structure du texte extrait/i)).toBeInTheDocument()
+    expect(screen.getByText(/Plat/i)).toBeInTheDocument()
+    expect(screen.getByText(/Aucun saut de paragraphe/i)).toBeInTheDocument()
   })
 })

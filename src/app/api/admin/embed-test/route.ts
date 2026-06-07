@@ -1,6 +1,11 @@
 import { auth } from '@/server/auth'
 import { runEmbedTest } from '@/server/embed-test/pipeline'
-import { EMBED_TEST_MODEL_KEYS, type EmbedTestModelKey } from '@/lib/embed-test/types'
+import {
+  EMBED_TEST_MODEL_KEYS,
+  refinePayloadSchema,
+  type EmbedTestModelKey,
+  type RefinePayload,
+} from '@/lib/embed-test/types'
 
 export const runtime = 'nodejs'
 
@@ -29,6 +34,7 @@ export async function POST(req: Request): Promise<Response> {
 
   let file: File
   let model: EmbedTestModelKey
+  let refine: RefinePayload | undefined
   try {
     const form = await req.formData()
     const rawFile = form.get('file')
@@ -48,6 +54,22 @@ export async function POST(req: Request): Promise<Response> {
     } else {
       return json({ error: 'invalid_model' }, 400)
     }
+
+    const rawRefine = form.get('refine')
+    if (rawRefine != null && rawRefine !== '') {
+      if (typeof rawRefine !== 'string' || rawRefine.length > 64 * 1024) {
+        return json({ error: 'invalid_refine' }, 400)
+      }
+      let parsedJson: unknown
+      try {
+        parsedJson = JSON.parse(rawRefine)
+      } catch {
+        return json({ error: 'invalid_refine' }, 400)
+      }
+      const parsed = refinePayloadSchema.safeParse(parsedJson)
+      if (!parsed.success) return json({ error: 'invalid_refine' }, 400)
+      refine = parsed.data
+    }
   } catch {
     return json({ error: 'invalid_form' }, 400)
   }
@@ -63,7 +85,7 @@ export async function POST(req: Request): Promise<Response> {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
       }
       try {
-        await runEmbedTest(buffer, model, emit)
+        await runEmbedTest(buffer, model, emit, refine)
       } catch (err) {
         // A client disconnect makes enqueue throw mid-pipeline — not a failure.
         if (!cancelled) {

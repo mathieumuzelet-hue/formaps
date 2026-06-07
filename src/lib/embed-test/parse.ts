@@ -21,6 +21,18 @@ const eventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('configs'), items: z.array(chunkConfigSchema) }),
   z.object({ type: z.literal('config-result'), result: configResultSchema }),
   z.object({
+    type: z.literal('diagnostic'),
+    diagnostic: z.object({
+      totalChars: z.number(),
+      paragraphBreaks: z.number(),
+      lineBreaks: z.number(),
+      avgParagraphTokens: z.number(),
+      shortLineRatio: z.number(),
+      verdict: z.enum(['structured', 'weakly_structured', 'flat']),
+      notes: z.array(z.string()),
+    }),
+  }),
+  z.object({
     type: z.literal('report'),
     report: z.object({
       ocr: z.object({

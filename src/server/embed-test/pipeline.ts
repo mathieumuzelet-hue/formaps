@@ -4,12 +4,17 @@
  * continues). Extraction/analysis failures are fatal (error event, stop).
  */
 import { chunkDocument, type Chunk } from '@/lib/embed-test/chunker'
+import {
+  analyzePagesStructure,
+  diagnosticPromptSummary,
+} from '@/lib/embed-test/diagnostics'
 import { formatDifySettings } from '@/lib/embed-test/dify-settings'
 import type {
   ConfigResult,
   EmbedTestEvent,
   EmbedTestModelKey,
   OcrVerdict,
+  RefinePayload,
 } from '@/lib/embed-test/types'
 import {
   createAnthropicClient,
@@ -50,6 +55,7 @@ export async function runEmbedTest(
   buffer: Uint8Array,
   modelKey: EmbedTestModelKey,
   emit: (event: EmbedTestEvent) => void,
+  refine?: RefinePayload,
 ): Promise<void> {
   const model = EMBED_TEST_MODELS[modelKey]
   const client = createAnthropicClient()
@@ -77,34 +83,44 @@ export async function runEmbedTest(
   }
   const fullText = pages.join('\n\n')
 
-  // 2. OCR verdict on sampled pages (vision vs native text layer)
-  emit({ type: 'step', id: 'ocr', label: 'Comparaison OCR vs extraction texte…' })
-  const indices = samplePageIndices(totalPages, MAX_VISION_PAGES)
+  // 1b. Deterministic structure diagnostic (emitted on every run)
+  const diagnostic = analyzePagesStructure(pages)
+  emit({ type: 'diagnostic', diagnostic })
+
+  // 2. OCR verdict on sampled pages (vision vs native text layer).
+  // On a refine run the verdict from the previous round is reused (no vision call).
   let ocr: OcrVerdict
-  try {
-    const samplePdf = await buildPdfSample(buffer, indices)
-    const nativeSample = indices.map((i) => pages[i] ?? '').join('\n\n--- PAGE ---\n\n')
-    const res = await ocrCompare(client, model, toBase64(samplePdf), nativeSample)
-    add(res.usage)
-    ocr = res.data
-  } catch (err) {
-    console.error('[embed-test] OCR compare a échoué:', err)
-    if (err instanceof PdfUnreadableError) {
-      // buildPdfSample (pdf-lib) can fail on PDFs unpdf could still read
-      // (e.g. encrypted) — report as unreadable, not as a Claude API failure.
+  if (refine) {
+    emit({ type: 'step', id: 'ocr', label: 'Verdict OCR réutilisé (tour précédent)' })
+    ocr = refine.ocr
+  } else {
+    emit({ type: 'step', id: 'ocr', label: 'Comparaison OCR vs extraction texte…' })
+    const indices = samplePageIndices(totalPages, MAX_VISION_PAGES)
+    try {
+      const samplePdf = await buildPdfSample(buffer, indices)
+      const nativeSample = indices.map((i) => pages[i] ?? '').join('\n\n--- PAGE ---\n\n')
+      const res = await ocrCompare(client, model, toBase64(samplePdf), nativeSample)
+      add(res.usage)
+      ocr = res.data
+    } catch (err) {
+      console.error('[embed-test] OCR compare a échoué:', err)
+      if (err instanceof PdfUnreadableError) {
+        // buildPdfSample (pdf-lib) can fail on PDFs unpdf could still read
+        // (e.g. encrypted) — report as unreadable, not as a Claude API failure.
+        emit({
+          type: 'error',
+          code: 'pdf_unreadable',
+          message: 'PDF illisible — protégé, corrompu ou non valide.',
+        })
+        return
+      }
       emit({
         type: 'error',
-        code: 'pdf_unreadable',
-        message: 'PDF illisible — protégé, corrompu ou non valide.',
+        code: 'ocr_compare_failed',
+        message: "L'analyse OCR via l'API Claude a échoué. Réessayez.",
       })
       return
     }
-    emit({
-      type: 'error',
-      code: 'ocr_compare_failed',
-      message: "L'analyse OCR via l'API Claude a échoué. Réessayez.",
-    })
-    return
   }
 
   // 3. Claude proposes configs from document structure
@@ -115,10 +131,13 @@ export async function runEmbedTest(
   })
   let configs
   try {
-    const res = await proposeConfigs(client, model, fullText.slice(0, MAX_ANALYSIS_CHARS), {
-      totalPages,
-      totalChars: fullText.length,
-    })
+    const res = await proposeConfigs(
+      client,
+      model,
+      fullText.slice(0, MAX_ANALYSIS_CHARS),
+      { totalPages, totalChars: fullText.length },
+      { diagnosticSummary: diagnosticPromptSummary(diagnostic), tested: refine?.tested },
+    )
     add(res.usage)
     configs = res.data
   } catch (err) {

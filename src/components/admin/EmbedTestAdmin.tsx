@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 
-import { useEmbedTest } from '@/lib/embed-test/useEmbedTest'
+import { buildRefinePayload, useEmbedTest } from '@/lib/embed-test/useEmbedTest'
+import { formatDifySettings } from '@/lib/embed-test/dify-settings'
 import type { EmbedTestModelKey } from '@/lib/embed-test/types'
 
 const MAX_SIZE = 25 * 1024 * 1024
@@ -23,10 +24,25 @@ export function EmbedTestAdmin() {
     void run(file, model)
   }
 
+  const onRefine = () => {
+    const payload = buildRefinePayload(state)
+    if (!file || !payload) return
+    setCopied(false)
+    void run(file, model, payload)
+  }
+
+  const globalBest = state.bestSoFar
+  const recommendedText =
+    globalBest != null
+      ? formatDifySettings(globalBest.config, globalBest.ocr)
+      : (state.report?.recommendation.difySettings ?? '')
+  const bestFromOtherRound =
+    globalBest != null && state.report != null && globalBest.round !== state.round
+
   const onCopy = async () => {
     if (!state.report) return
     try {
-      await navigator.clipboard.writeText(state.report.recommendation.difySettings)
+      await navigator.clipboard.writeText(recommendedText)
       setCopied(true)
     } catch {
       // Clipboard unavailable — skip the "Copié" confirmation.
@@ -52,7 +68,10 @@ export function EmbedTestAdmin() {
               type="file"
               accept="application/pdf"
               disabled={running}
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                reset()
+                setFile(e.target.files?.[0] ?? null)
+              }}
               className="text-[13.5px]"
             />
             {tooBig && (
@@ -119,6 +138,28 @@ export function EmbedTestAdmin() {
         </section>
       )}
 
+      {/* Diagnostic structure */}
+      {state.diagnostic && (
+        <section className="mt-6 rounded-xl border border-line bg-white p-5">
+          <h2 className="text-[15px] font-bold">Structure du texte extrait</h2>
+          <p className="mt-1 text-[14px]">
+            {state.diagnostic.verdict === 'structured' && '✅ Structuré'}
+            {state.diagnostic.verdict === 'weakly_structured' && '⚠️ Peu structuré'}
+            {state.diagnostic.verdict === 'flat' && '🚫 Plat'}
+            <span className="ml-2 text-[12.5px] text-sub">
+              {state.diagnostic.paragraphBreaks} sauts de paragraphe ·{' '}
+              ~{state.diagnostic.avgParagraphTokens} tokens/paragraphe ·{' '}
+              {Math.round(state.diagnostic.shortLineRatio * 100)} % de lignes courtes
+            </span>
+          </p>
+          <ul className="mt-2 flex flex-col gap-1 text-[13px] text-sub">
+            {state.diagnostic.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Erreur */}
       {state.status === 'error' && state.error && (
         <section className="mt-6 rounded-xl border border-red/40 bg-white p-5 text-[14px]" role="alert">
@@ -140,7 +181,14 @@ export function EmbedTestAdmin() {
           </section>
 
           <section className="mt-6 rounded-xl border border-line bg-white p-5">
-            <h2 className="text-[15px] font-bold">Configurations testées</h2>
+            <h2 className="text-[15px] font-bold">
+              Configurations testées — Tour {state.round}
+            </h2>
+            {state.round > 1 && (
+              <p className="mt-1 text-[12.5px] text-sub">
+                {state.history.length} configs testées au total
+              </p>
+            )}
             <table className="mt-3 w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-line text-sub">
@@ -198,7 +246,11 @@ export function EmbedTestAdmin() {
 
           <section className="mt-6 rounded-xl border-2 border-red/50 bg-white p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-[15px] font-bold">Recommandation — à reporter dans Dify</h2>
+              <h2 className="text-[15px] font-bold">
+                {bestFromOtherRound
+                  ? `Recommandation — meilleure config (tour ${globalBest!.round})`
+                  : 'Recommandation — à reporter dans Dify'}
+              </h2>
               <button
                 type="button"
                 onClick={onCopy}
@@ -208,9 +260,28 @@ export function EmbedTestAdmin() {
               </button>
             </div>
             <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-sand/50 p-3 text-[13px]">
-              {state.report.recommendation.difySettings}
+              {recommendedText}
             </pre>
-            <p className="mt-2 text-[13px] text-sub">{state.report.recommendation.rationale}</p>
+            <p className="mt-2 text-[13px] text-sub">
+              {globalBest?.rationale ?? state.report.recommendation.rationale}
+            </p>
+            {state.status === 'done' && (
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onRefine}
+                  disabled={!file || running}
+                  className="rounded-lg bg-red px-4 py-2 text-[14px] font-bold text-white disabled:opacity-40"
+                >
+                  Raffiner (tour {state.round + 1})
+                </button>
+                {!file && (
+                  <p className="text-[12.5px] text-sub">
+                    Resélectionnez le PDF pour raffiner.
+                  </p>
+                )}
+              </div>
+            )}
             <p className="mt-3 text-[12px] text-sub">
               Tokens Claude consommés : {state.report.usage.inputTokens.toLocaleString('fr-FR')} in
               / {state.report.usage.outputTokens.toLocaleString('fr-FR')} out · Rapport éphémère —
