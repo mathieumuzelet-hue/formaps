@@ -328,13 +328,77 @@ describe('proposeConfigs — refine extras', () => {
 })
 
 describe('judgeConfig', () => {
+  const judgeConfigInput = {
+    label: 'Standard',
+    mode: 'general',
+    separator: '\\n\\n',
+    maxTokens: 1024,
+    overlapTokens: 128,
+    preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+  } as const
+
+  function judgePrompt(client: AnthropicLike): string {
+    const params = (client.messages.create as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    return (params as { messages: Array<{ content: string }> }).messages[0].content
+  }
+
   test('returns validated judgement', async () => {
     const client = fakeClient({ score: 7.5, issues: ['phrase coupée p.2'], summary: 'correct' })
-    const res = await judgeConfig(client, 'claude-sonnet-4-6', 'Standard', [
-      { text: 'chunk un' },
-      { text: 'chunk deux', parentText: 'parent' },
-    ])
+    const res = await judgeConfig(
+      client,
+      'claude-sonnet-4-6',
+      judgeConfigInput,
+      [{ text: 'chunk un' }, { text: 'chunk deux', parentText: 'parent' }],
+      'structured',
+    )
     expect(res.data.score).toBe(7.5)
     expect(res.data.issues).toHaveLength(1)
+  })
+
+  test('prompt carries the evaluated config context, escaped separator, and overlap calibration', async () => {
+    const client = fakeClient({ score: 7, issues: [], summary: 'ok' })
+    await judgeConfig(
+      client,
+      'claude-sonnet-4-6',
+      { ...judgeConfigInput, separator: '\n\n' },
+      [{ text: 'chunk un' }],
+      'structured',
+    )
+    const prompt = judgePrompt(client)
+    expect(prompt).toContain('CONFIG ÉVALUÉE')
+    expect(prompt).toContain('\\n\\n')
+    expect(prompt).toContain('ne les compte PAS comme défaut')
+    expect(prompt).toContain('Standard')
+  })
+
+  test('parent-child config exposes parent/child sizes in the prompt', async () => {
+    const client = fakeClient({ score: 7, issues: [], summary: 'ok' })
+    await judgeConfig(
+      client,
+      'claude-sonnet-4-6',
+      {
+        ...judgeConfigInput,
+        mode: 'parent-child',
+        parentMaxTokens: 2000,
+        childMaxTokens: 400,
+      },
+      [{ text: 'chunk un' }],
+      'structured',
+    )
+    const prompt = judgePrompt(client)
+    expect(prompt).toContain('parent 2000')
+    expect(prompt).toContain('enfant 400')
+  })
+
+  test('relative-quality instruction appears for non-structured verdicts', async () => {
+    const client = fakeClient({ score: 7, issues: [], summary: 'ok' })
+    await judgeConfig(client, 'claude-sonnet-4-6', judgeConfigInput, [{ text: 'c' }], 'flat')
+    expect(judgePrompt(client)).toContain('RELATIVE')
+  })
+
+  test('relative-quality instruction is absent for the structured verdict', async () => {
+    const client = fakeClient({ score: 7, issues: [], summary: 'ok' })
+    await judgeConfig(client, 'claude-sonnet-4-6', judgeConfigInput, [{ text: 'c' }], 'structured')
+    expect(judgePrompt(client)).not.toContain('RELATIVE')
   })
 })

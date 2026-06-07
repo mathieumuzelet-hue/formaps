@@ -169,6 +169,28 @@ describe('POST /api/admin/embed-test — refine', () => {
     )
   })
 
+  test('refine carrying a manual config is forwarded opaquely', async () => {
+    const withManual = JSON.stringify({
+      ...JSON.parse(validRefine),
+      manual: {
+        label: 'Manuelle',
+        mode: 'general',
+        separator: '\\n\\n',
+        maxTokens: 1300,
+        overlapTokens: 150,
+        preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+      },
+    })
+    const res = await POST(makeRequest({ refine: withManual }))
+    expect(res.status).toBe(200)
+    expect(runEmbedTest).toHaveBeenCalledWith(
+      expect.anything(),
+      'sonnet',
+      expect.any(Function),
+      expect.objectContaining({ manual: expect.objectContaining({ label: 'Manuelle' }) }),
+    )
+  })
+
   test('absent refine → pipeline called without payload', async () => {
     await (await POST(makeRequest())).text()
     expect(runEmbedTest).toHaveBeenCalledWith(

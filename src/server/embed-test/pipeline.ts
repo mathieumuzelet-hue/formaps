@@ -123,31 +123,37 @@ export async function runEmbedTest(
     }
   }
 
-  // 3. Claude proposes configs from document structure
-  emit({
-    type: 'step',
-    id: 'propose',
-    label: 'Claude analyse la structure et propose des configurations…',
-  })
+  // 3. Configs to judge — either a single admin-supplied manual config (no
+  // proposal call) or Claude's proposals from the document structure.
   let configs
-  try {
-    const res = await proposeConfigs(
-      client,
-      model,
-      fullText.slice(0, MAX_ANALYSIS_CHARS),
-      { totalPages, totalChars: fullText.length },
-      { diagnosticSummary: diagnosticPromptSummary(diagnostic), tested: refine?.tested },
-    )
-    add(res.usage)
-    configs = res.data
-  } catch (err) {
-    console.error('[embed-test] proposeConfigs a échoué:', err)
+  if (refine?.manual) {
+    emit({ type: 'step', id: 'propose', label: 'Config manuelle fournie — proposition sautée' })
+    configs = [refine.manual]
+  } else {
     emit({
-      type: 'error',
-      code: 'propose_failed',
-      message: "La proposition de configurations via l'API Claude a échoué. Réessayez.",
+      type: 'step',
+      id: 'propose',
+      label: 'Claude analyse la structure et propose des configurations…',
     })
-    return
+    try {
+      const res = await proposeConfigs(
+        client,
+        model,
+        fullText.slice(0, MAX_ANALYSIS_CHARS),
+        { totalPages, totalChars: fullText.length },
+        { diagnosticSummary: diagnosticPromptSummary(diagnostic), tested: refine?.tested },
+      )
+      add(res.usage)
+      configs = res.data
+    } catch (err) {
+      console.error('[embed-test] proposeConfigs a échoué:', err)
+      emit({
+        type: 'error',
+        code: 'propose_failed',
+        message: "La proposition de configurations via l'API Claude a échoué. Réessayez.",
+      })
+      return
+    }
   }
   emit({ type: 'configs', items: configs })
 
@@ -177,7 +183,13 @@ export async function runEmbedTest(
       continue
     }
     try {
-      const res = await judgeConfig(client, model, configs[i].label, sampleChunks(chunks))
+      const res = await judgeConfig(
+        client,
+        model,
+        configs[i],
+        sampleChunks(chunks),
+        diagnostic.verdict,
+      )
       add(res.usage)
       result = { index: i, ...res.data, chunkCount: chunks.length }
     } catch (err) {
