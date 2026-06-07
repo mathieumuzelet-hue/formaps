@@ -115,6 +115,18 @@ export function buildRefinePayload(state: EmbedTestState): RefinePayload | null 
   return { ocr: state.report.ocr, tested: state.history.slice(-30) }
 }
 
+/**
+ * Refine payload carrying ONE admin-supplied config — the pipeline judges only
+ * this config and skips the propose step. Null until a report exists.
+ */
+export function buildManualPayload(
+  state: EmbedTestState,
+  config: ChunkConfig,
+): RefinePayload | null {
+  const base = buildRefinePayload(state)
+  return base ? { ...base, manual: config } : null
+}
+
 /** French messages for HTTP-level failures (before the SSE stream starts). */
 export function httpErrorText(status: number): string {
   switch (status) {

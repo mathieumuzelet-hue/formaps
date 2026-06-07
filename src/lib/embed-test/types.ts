@@ -88,6 +88,8 @@ export const refinePayloadSchema = z.object({
     coverage: z.number().min(0).max(1),
   }),
   tested: z.array(testedConfigSchema).min(1).max(30),
+  /** Optional admin-supplied config: pipeline judges ONLY this, skips propose. */
+  manual: chunkConfigSchema.optional(),
 })
 export type RefinePayload = z.infer<typeof refinePayloadSchema>
 

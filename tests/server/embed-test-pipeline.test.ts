@@ -240,6 +240,30 @@ describe('runEmbedTest — diagnostic & refine', () => {
     const extras = proposeConfigs.mock.calls[0][4] as { tested?: unknown[] }
     expect(extras.tested).toHaveLength(1)
   })
+
+  test('manual config: propose never called, single judge, configs = [manual]', async () => {
+    const manual = { ...config('Manuelle'), maxTokens: 1300, overlapTokens: 150 }
+    const refine: RefinePayload = {
+      ocr: { verdict: 'text_ok', reason: 'ok', coverage: 0.9 },
+      tested: [{ config: config('A'), score: 3, issues: [], round: 1 }],
+      manual,
+    }
+    const events = await collectRefine(refine)
+    expect(proposeConfigs).not.toHaveBeenCalled()
+    expect(ocrCompare).not.toHaveBeenCalled()
+    expect(judgeConfig).toHaveBeenCalledTimes(1)
+    const cfgs = events.find((e) => e.type === 'configs')
+    expect(cfgs?.type === 'configs' && cfgs.items).toEqual([manual])
+    const report = events.find((e) => e.type === 'report')
+    expect(report?.type === 'report' && report.report.ranking).toEqual([0])
+  })
+
+  test('judge receives the evaluated config and the diagnostic verdict', async () => {
+    await collect()
+    const args = judgeConfig.mock.calls[0]
+    expect(args[2]).toMatchObject({ label: 'A' })
+    expect(['structured', 'weakly_structured', 'flat']).toContain(args[4])
+  })
 })
 
 describe('sampleChunks', () => {

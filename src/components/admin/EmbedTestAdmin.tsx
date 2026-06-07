@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 
-import { buildRefinePayload, useEmbedTest } from '@/lib/embed-test/useEmbedTest'
+import { buildManualPayload, buildRefinePayload, useEmbedTest } from '@/lib/embed-test/useEmbedTest'
+import { escapeSeparator } from '@/lib/embed-test/chunker'
 import { formatDifySettings } from '@/lib/embed-test/dify-settings'
-import type { EmbedTestModelKey } from '@/lib/embed-test/types'
+import { chunkConfigSchema, type EmbedTestModelKey } from '@/lib/embed-test/types'
 
 const MAX_SIZE = 25 * 1024 * 1024
 
@@ -14,9 +15,52 @@ export function EmbedTestAdmin() {
   const [model, setModel] = useState<EmbedTestModelKey>('sonnet')
   const [copied, setCopied] = useState(false)
 
+  // « Tester ma config » manual form
+  const [manualOpen, setManualOpen] = useState(false)
+  const [manualMode, setManualMode] = useState<'general' | 'parent-child'>('general')
+  const [manualSeparator, setManualSeparator] = useState('\\n\\n')
+  const [manualMaxTokens, setManualMaxTokens] = useState('1024')
+  const [manualOverlapTokens, setManualOverlapTokens] = useState('150')
+  const [manualParentMaxTokens, setManualParentMaxTokens] = useState('1024')
+  const [manualChildMaxTokens, setManualChildMaxTokens] = useState('256')
+  const [manualRemoveExtraSpaces, setManualRemoveExtraSpaces] = useState(true)
+  const [manualRemoveUrlsEmails, setManualRemoveUrlsEmails] = useState(false)
+  const [manualError, setManualError] = useState(false)
+
   const running = state.status === 'running'
   const tooBig = file != null && file.size > MAX_SIZE
   const canLaunch = file != null && !tooBig && !running
+
+  const onManualSubmit = () => {
+    const maxTokens = Number(manualMaxTokens)
+    const overlapTokens = Number(manualOverlapTokens)
+    const parsed = chunkConfigSchema.safeParse({
+      label: `Manuelle (${maxTokens} tk / ${overlapTokens} ov)`,
+      mode: manualMode,
+      separator: manualSeparator,
+      maxTokens,
+      overlapTokens,
+      ...(manualMode === 'parent-child'
+        ? {
+            parentMaxTokens: Number(manualParentMaxTokens),
+            childMaxTokens: Number(manualChildMaxTokens),
+          }
+        : {}),
+      preprocessing: {
+        removeExtraSpaces: manualRemoveExtraSpaces,
+        removeUrlsEmails: manualRemoveUrlsEmails,
+      },
+    })
+    if (!parsed.success) {
+      setManualError(true)
+      return
+    }
+    setManualError(false)
+    const payload = buildManualPayload(state, parsed.data)
+    if (!file || !payload) return
+    setCopied(false)
+    void run(file, model, payload)
+  }
 
   const onLaunch = () => {
     if (!file) return
@@ -225,7 +269,7 @@ export function EmbedTestAdmin() {
                         <td className="py-2 pr-3">
                           {config.mode === 'general' ? 'Général' : 'Parent-enfant'}
                         </td>
-                        <td className="py-2 pr-3">{config.separator}</td>
+                        <td className="py-2 pr-3">{escapeSeparator(config.separator)}</td>
                         <td className="py-2 pr-3">
                           {config.mode === 'general'
                             ? `${config.maxTokens} tk`
@@ -275,11 +319,123 @@ export function EmbedTestAdmin() {
                 >
                   Raffiner (tour {state.round + 1})
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setManualOpen((o) => !o)}
+                  className="rounded-lg border border-line px-4 py-2 text-[14px] font-medium"
+                >
+                  Tester ma config
+                </button>
                 {!file && (
                   <p className="text-[12.5px] text-sub">
                     Resélectionnez le PDF pour raffiner.
                   </p>
                 )}
+              </div>
+            )}
+            {state.status === 'done' && manualOpen && (
+              <div className="mt-4 flex flex-col gap-3 rounded-lg border border-line bg-white p-4">
+                <label className="flex flex-col gap-1 text-[13px] font-medium">
+                  Mode
+                  <select
+                    value={manualMode}
+                    disabled={running}
+                    onChange={(e) =>
+                      setManualMode(e.target.value as 'general' | 'parent-child')
+                    }
+                    className="w-fit rounded-lg border border-line px-3 py-2 text-[13px]"
+                  >
+                    <option value="general">Général</option>
+                    <option value="parent-child">Parent-enfant</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-[13px] font-medium">
+                  Séparateur
+                  <input
+                    type="text"
+                    value={manualSeparator}
+                    disabled={running}
+                    onChange={(e) => setManualSeparator(e.target.value)}
+                    className="w-fit rounded-lg border border-line px-3 py-2 text-[13px]"
+                  />
+                </label>
+                <div className="flex gap-3">
+                  <label className="flex flex-col gap-1 text-[13px] font-medium">
+                    Longueur max
+                    <input
+                      type="number"
+                      value={manualMaxTokens}
+                      disabled={running}
+                      onChange={(e) => setManualMaxTokens(e.target.value)}
+                      className="w-[120px] rounded-lg border border-line px-3 py-2 text-[13px]"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[13px] font-medium">
+                    Chevauchement
+                    <input
+                      type="number"
+                      value={manualOverlapTokens}
+                      disabled={running}
+                      onChange={(e) => setManualOverlapTokens(e.target.value)}
+                      className="w-[120px] rounded-lg border border-line px-3 py-2 text-[13px]"
+                    />
+                  </label>
+                </div>
+                {manualMode === 'parent-child' && (
+                  <div className="flex gap-3">
+                    <label className="flex flex-col gap-1 text-[13px] font-medium">
+                      Parent
+                      <input
+                        type="number"
+                        value={manualParentMaxTokens}
+                        disabled={running}
+                        onChange={(e) => setManualParentMaxTokens(e.target.value)}
+                        className="w-[120px] rounded-lg border border-line px-3 py-2 text-[13px]"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[13px] font-medium">
+                      Enfant
+                      <input
+                        type="number"
+                        value={manualChildMaxTokens}
+                        disabled={running}
+                        onChange={(e) => setManualChildMaxTokens(e.target.value)}
+                        className="w-[120px] rounded-lg border border-line px-3 py-2 text-[13px]"
+                      />
+                    </label>
+                  </div>
+                )}
+                <label className="flex items-center gap-2 text-[13px] font-medium">
+                  <input
+                    type="checkbox"
+                    checked={manualRemoveExtraSpaces}
+                    disabled={running}
+                    onChange={(e) => setManualRemoveExtraSpaces(e.target.checked)}
+                  />
+                  Remplacer les espaces consécutifs
+                </label>
+                <label className="flex items-center gap-2 text-[13px] font-medium">
+                  <input
+                    type="checkbox"
+                    checked={manualRemoveUrlsEmails}
+                    disabled={running}
+                    onChange={(e) => setManualRemoveUrlsEmails(e.target.checked)}
+                  />
+                  Supprimer URLs et e-mails
+                </label>
+                {manualError && (
+                  <p className="text-[12.5px] text-red" role="alert">
+                    Valeurs invalides — taille 100-4000, chevauchement &lt; taille.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={onManualSubmit}
+                  disabled={!file || running}
+                  className="w-fit rounded-lg bg-red px-4 py-2 text-[14px] font-bold text-white disabled:opacity-40"
+                >
+                  Tester cette config (tour {state.round + 1})
+                </button>
               </div>
             )}
             <p className="mt-3 text-[12px] text-sub">

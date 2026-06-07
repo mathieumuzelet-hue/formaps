@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest'
 import {
   chunkDocument,
   countTokens,
+  escapeSeparator,
   normalizeSeparator,
   preprocess,
 } from '@/lib/embed-test/chunker'
@@ -22,6 +23,18 @@ describe('normalizeSeparator', () => {
     expect(normalizeSeparator('\\n\\n')).toBe('\n\n')
     expect(normalizeSeparator('\\t')).toBe('\t')
     expect(normalizeSeparator('###')).toBe('###')
+  })
+})
+
+describe('escapeSeparator', () => {
+  test('escapes real newlines and tabs', () => {
+    expect(escapeSeparator('\n\n')).toBe('\\n\\n')
+    expect(escapeSeparator('\t')).toBe('\\t')
+  })
+  test('idempotent on already-escaped forms and inert strings', () => {
+    expect(escapeSeparator('\\n\\n')).toBe('\\n\\n')
+    expect(escapeSeparator('###')).toBe('###')
+    expect(escapeSeparator(escapeSeparator('\n'))).toBe('\\n')
   })
 })
 

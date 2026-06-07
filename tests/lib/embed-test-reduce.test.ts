@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
   applyEvent,
+  buildManualPayload,
   buildRefinePayload,
   httpErrorText,
   initialState,
@@ -149,5 +150,27 @@ describe('buildRefinePayload', () => {
     const payload = buildRefinePayload(state)
     expect(payload?.ocr.verdict).toBe('text_ok')
     expect(payload?.tested).toHaveLength(1)
+  })
+})
+
+describe('buildManualPayload', () => {
+  test('null without a report', () => {
+    expect(buildManualPayload(initialState, config)).toBeNull()
+  })
+
+  test('attaches manual on top of the refine payload', () => {
+    const state = [
+      { type: 'configs' as const, items: [config] },
+      {
+        type: 'config-result' as const,
+        result: { index: 0, score: 4, issues: [], summary: 's', chunkCount: 3 },
+      },
+      { type: 'report' as const, report: makeReport(4) },
+    ].reduce(applyEvent, { ...initialState, status: 'running' as const, round: 1 })
+    const manual = { ...config, label: 'Manuelle (1300 tk / 150 ov)', maxTokens: 1300, overlapTokens: 150 }
+    const payload = buildManualPayload(state, manual)
+    expect(payload?.ocr.verdict).toBe('text_ok')
+    expect(payload?.tested).toHaveLength(1)
+    expect(payload?.manual).toEqual(manual)
   })
 })

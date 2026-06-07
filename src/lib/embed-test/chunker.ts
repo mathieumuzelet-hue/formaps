@@ -19,6 +19,16 @@ export function normalizeSeparator(separator: string): string {
   return separator.replace(/\\n/g, '\n').replace(/\\t/g, '\t')
 }
 
+/**
+ * Display inverse of `normalizeSeparator`: real newline/tab characters → their
+ * escaped two-char forms, so separators render on one line in the recommendation
+ * card and the results table. Idempotent: an already-escaped "\\n" holds no REAL
+ * newline character, so it passes through unchanged.
+ */
+export function escapeSeparator(s: string): string {
+  return s.replace(/\n/g, '\\n').replace(/\t/g, '\\t')
+}
+
 export function preprocess(
   text: string,
   rules: ChunkConfig['preprocessing'],

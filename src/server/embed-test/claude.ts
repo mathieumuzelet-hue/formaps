@@ -16,7 +16,8 @@ import {
   type OcrVerdict,
   type TestedConfig,
 } from '@/lib/embed-test/types'
-import type { Chunk } from '@/lib/embed-test/chunker'
+import { escapeSeparator, type Chunk } from '@/lib/embed-test/chunker'
+import type { TextDiagnostic } from '@/lib/embed-test/types'
 
 export const EMBED_TEST_MODELS: Record<EmbedTestModelKey, string> = {
   sonnet: 'claude-sonnet-4-6',
@@ -338,11 +339,29 @@ const JUDGE_TOOL_SCHEMA: Anthropic.Tool.InputSchema = {
   additionalProperties: false,
 }
 
+/** Header describing the config the judge is evaluating (mode, sizes, overlap). */
+function renderConfigBlock(config: ChunkConfig): string {
+  const sep = escapeSeparator(config.separator)
+  const parentChild =
+    config.mode === 'parent-child'
+      ? `, parent ${config.parentMaxTokens} / enfant ${config.childMaxTokens} tk`
+      : ''
+  return (
+    '--- CONFIG ÉVALUÉE ---\n' +
+    `mode ${config.mode}, séparateur "${sep}", longueur max ${config.maxTokens} tk, ` +
+    `chevauchement ${config.overlapTokens} tk${parentChild}\n\n` +
+    'IMPORTANT : le chevauchement recopie volontairement la fin du chunk précédent au ' +
+    'début du suivant — ces répétitions entre chunks consécutifs sont un mécanisme RAG ' +
+    'voulu, ne les compte PAS comme défaut.\n\n'
+  )
+}
+
 export async function judgeConfig(
   client: AnthropicLike,
   model: string,
-  configLabel: string,
+  config: ChunkConfig,
   chunks: Chunk[],
+  diagnosticVerdict: TextDiagnostic['verdict'],
 ): Promise<{ data: { score: number; issues: string[]; summary: string }; usage: Usage }> {
   const rendered = chunks
     .map((c, i) => {
@@ -350,10 +369,18 @@ export async function judgeConfig(
       return `=== CHUNK ${i + 1} ===\n${c.text}${parent}`
     })
     .join('\n\n')
+  const relativeBlock =
+    diagnosticVerdict !== 'structured'
+      ? 'Le texte source est sans structure exploitable — note la qualité RELATIVE du ' +
+        'compromis de découpage pour ce texte, pas l’écart à un idéal de document ' +
+        'structuré.\n\n'
+      : ''
   const { input, usage } = await forcedToolCall(
     client,
     model,
-    `Évalue la qualité STRUCTURELLE de ce découpage en chunks (config "${configLabel}") ` +
+    renderConfigBlock(config) +
+      relativeBlock +
+      `Évalue la qualité STRUCTURELLE de ce découpage en chunks (config "${config.label}") ` +
       'pour du retrieval RAG : phrases coupées en plein milieu, idées fragmentées entre ' +
       'chunks, tableaux ou listes cassés, chunks orphelins sans contexte, chunks trop ' +
       'hétérogènes. Note de 0 (inutilisable) à 10 (parfait). Liste les problèmes concrets.\n\n' +
