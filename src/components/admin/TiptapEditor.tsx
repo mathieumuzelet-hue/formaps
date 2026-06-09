@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect } from 'react'
+
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
@@ -36,6 +38,16 @@ export function TiptapEditor({ value, onChange }: Props) {
     immediatelyRender: false,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
   })
+
+  // `content` is only applied when the editor is constructed. When the parent
+  // hydrates its form state AFTER mount (NewsEditor loads the article via
+  // tRPC), re-apply the external value. No-op while typing: onUpdate keeps
+  // `value` equal to editor.getHTML(), so the guard short-circuits.
+  useEffect(() => {
+    if (!editor) return
+    if (editor.getHTML() === value) return
+    editor.commands.setContent(value, { emitUpdate: false })
+  }, [editor, value])
 
   if (!editor) {
     return (
