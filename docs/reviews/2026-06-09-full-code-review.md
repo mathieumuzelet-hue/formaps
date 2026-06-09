@@ -144,13 +144,49 @@ compose) + `ALLOW_DESTRUCTIVE_SEED`/`SEED_ADMIN_PASSWORD`/`SEED_CAMILLE_PASSWORD
 
 ---
 
-## Roadmap de remédiation proposée
+## Réconciliation avec l'audit parallèle du même jour
 
-1. **Sprint quick-wins** (~½ journée) : A1 (helper CSV partagé), A3 (normalisation
-   email), D1 (migration index), D4 (garde dernier admin), F2 (bouton SharePoint),
-   M-redSoft, I1 (.env.example), DEPLOY.md.
-2. **Sprint cycle de vie BRAIN** : B1+B2 (AbortSignal.any), B3 (persist au message_end),
-   B4 (parsing data:), + minors BRAIN associés.
-3. **Sprint robustesse imports & embed** : D2+D3 (cap bulk + credentials), E1+E3
-   (bornes + stop_reason), E2, F3 (magic bytes).
-4. **Backlog** : A2 (rate limiting), headers sécurité, le reste des MINOR.
+Un second audit indépendant (6 reviewers Opus, même commit 9155e95) a été produit le
+même jour : `2026-06-09-full-audit-synthesis.md`. Recouvrement fort (CSV injection,
+timeout Dify, request.signal, race conversationId, emails non normalisés, rate-limit,
+redSoft, labels a11y, headers HTTP, .env.example, engines>=20). Sa calibration classe
+en CRITICAL ce que ce rapport classe en IMPORTANT — dans les deux cas : **aucune faille
+d'intrusion**, ce sont des trous de robustesse/exploitation à durcir.
+
+**Findings uniques de l'audit parallèle à intégrer (haute priorité)** :
+- `scripts/migrate.mjs` sans try/catch/finally NI `pg_advisory_lock` : 2 containers qui
+  bootent ensemble = `duplicate_table` → unhealthy → router Traefik invisible (classe
+  d'incident déjà vue dans le parc) ; pas de retry si DB pas prête.
+- **Aucune CI GitHub** : Dokploy auto-déploie main sans gate lint/tsc/tests ; pas de
+  script `typecheck` dans package.json.
+- Aucun `error.tsx` / `not-found.tsx` / `loading.tsx` dans `src/app`.
+- `configKey` dédupe sur le séparateur ÉCHAPPÉ (`"\n\n"` ≠ `"\\n\\n"` = dédup contournée).
+- `flush()` FAQ-gaps n'exclut pas `errorSeen` → conversations en erreur loggées comme gaps.
+- Pool postgres `max:1` en prod (sérialise toute l'app — aggrave le bulk argon2).
+- Timestamps sans timezone (`timestamp` vs `timestamptz`) ; `chat_queries.feedback`
+  text libre sans enum ; timing oracle d'énumération à l'authorize.
+- Tiptap sans garde « non sauvegardé » (perte d'article) ; `/actualites` absent du
+  MobileTabBar ; bootstrap-admin ne bump pas `password_changed_at` au `do update`.
+
+**Findings uniques de CE rapport** (absents de l'autre) : index FK manquants (D1),
+lockout self-demote dernier admin (D4), parsing SSE `data:` strict (B4), bornes embed
+`nativeSample`/`parentText`/`stop_reason` (E1-E3), magic bytes upload (F3), bulk
+non-transactionnel = plaintext perdus (D3).
+
+## Roadmap de remédiation consolidée (7 PRs)
+
+1. **PR robustesse BRAIN** : timeout + `AbortSignal.any(request.signal, …)` sur les
+   fetch Dify, persistance conversationId au `message_end`, parsing `data:` souple,
+   exclusion `errorSeen` du log FAQ-gaps, borne `query`, minors BRAIN.
+2. **PR CI + typecheck** : workflow GitHub lint+tsc+tests+build, script `typecheck`.
+3. **PR CSV partagé RFC 4180** : helper échappement + guard formule `=+-@` (faq-gaps +
+   credentials + template), bornes import client, cap bulk users ~200-300.
+4. **PR boot/migrations** : try/catch/finally + `pg_advisory_lock` + retry DB dans
+   migrate.mjs ; revoir pool `max` ; migration index FK (D1).
+5. **PR frontend filet** : error/not-found/loading.tsx, redsoft ×3, garde Tiptap,
+   tab Actualités mobile, bouton SharePoint fantôme, labels a11y.
+6. **PR sécurité** : rate-limit connexion (+timing oracle), headers HTTP, cron purge
+   RGPD, normalisation email lowercase, garde dernier admin.
+7. **PR embed-lab polish** : configKey normalisé, hash fichier au refine, bornes
+   chunking/`nativeSample`/`parentText`, `stop_reason` + max_tokens réduit, magic bytes
+   uploads, enum feedback, timestamptz (si migration jugée utile).
