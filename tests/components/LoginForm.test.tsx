@@ -60,4 +60,18 @@ describe('LoginForm', () => {
     })
     expect(push).toHaveBeenCalledWith('/')
   })
+
+  test('réactive le formulaire si signIn rejette (erreur réseau)', async () => {
+    signIn.mockRejectedValue(new Error('fetch failed'))
+    const user = userEvent.setup()
+    render(<LoginForm />)
+
+    await user.click(screen.getByRole('button', { name: /Embarquer/i }))
+
+    expect(
+      await screen.findByText('Identifiant ou mot de passe invalide'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Embarquer/i })).toBeEnabled()
+    expect(push).not.toHaveBeenCalled()
+  })
 })

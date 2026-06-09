@@ -54,20 +54,26 @@ export function LoginForm() {
     setError(false)
     setSubmitting(true)
 
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    })
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      })
 
-    if (result?.error) {
+      if (result?.error) {
+        setError(true)
+        setSubmitting(false)
+        return
+      }
+
+      router.push('/')
+      router.refresh()
+    } catch {
+      // Network failure before NextAuth could answer — same UX as bad creds.
       setError(true)
       setSubmitting(false)
-      return
     }
-
-    router.push('/')
-    router.refresh()
   }
 
   return (
