@@ -171,7 +171,7 @@ export function FormationsAdmin() {
                             del.mutate({ id: f.id })
                           }
                         }}
-                        className="rounded-lg border border-redSoft px-3 py-1.5 text-[13px] font-medium text-red hover:bg-redSoft disabled:opacity-50"
+                        className="rounded-lg border border-redsoft px-3 py-1.5 text-[13px] font-medium text-red hover:bg-redsoft disabled:opacity-50"
                       >
                         Supprimer
                       </button>

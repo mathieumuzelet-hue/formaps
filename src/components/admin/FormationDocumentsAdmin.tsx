@@ -108,7 +108,7 @@ export function FormationDocumentsAdmin({ formationId }: { formationId: string }
                         {doc.order}. {doc.title}
                       </span>
                       {doc.isNew && (
-                        <span className="rounded-full bg-redSoft px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-red">
+                        <span className="rounded-full bg-redsoft px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-red">
                           Nouveau
                         </span>
                       )}
@@ -133,7 +133,7 @@ export function FormationDocumentsAdmin({ formationId }: { formationId: string }
                         del.mutate({ docId: doc.id })
                       }
                     }}
-                    className="rounded-lg border border-redSoft px-3 py-1.5 text-[13px] font-medium text-red hover:bg-redSoft disabled:opacity-50"
+                    className="rounded-lg border border-redsoft px-3 py-1.5 text-[13px] font-medium text-red hover:bg-redsoft disabled:opacity-50"
                   >
                     Supprimer
                   </button>
