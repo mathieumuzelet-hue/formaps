@@ -7,12 +7,19 @@ vi.mock('next/navigation', () => ({
 
 import { MobileTabBar } from '@/components/nav/MobileTabBar'
 
-test('affiche les 4 onglets', () => {
+test('affiche les 5 onglets', () => {
   render(<MobileTabBar />)
   expect(screen.getByText('Accueil')).toBeInTheDocument()
   expect(screen.getByText('Former')).toBeInTheDocument()
   expect(screen.getByText('BRAIN')).toBeInTheDocument()
+  expect(screen.getByText('Actus')).toBeInTheDocument()
   expect(screen.getByText('Profil')).toBeInTheDocument()
+})
+
+test('expose un onglet Actualités vers /actualites', () => {
+  render(<MobileTabBar />)
+  const link = screen.getByRole('link', { name: /actus/i })
+  expect(link).toHaveAttribute('href', '/actualites')
 })
 
 test("marque l'onglet actif (Accueil) avec le style actif", () => {
