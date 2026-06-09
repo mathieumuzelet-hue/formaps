@@ -18,3 +18,9 @@ test("n'affiche pas le lien Admin pour un employé", () => {
   render(<BNav firstName="Camille" role="employee" />)
   expect(screen.queryByText('Admin')).not.toBeInTheDocument()
 })
+
+test("l'avatar pointe vers le profil (accès logout desktop)", () => {
+  render(<BNav firstName="Camille" role="employee" />)
+  const avatar = screen.getByRole('link', { name: /mon profil/i })
+  expect(avatar).toHaveAttribute('href', '/profil')
+})

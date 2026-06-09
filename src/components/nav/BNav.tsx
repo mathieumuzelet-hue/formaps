@@ -81,8 +81,9 @@ export function BNav({ firstName, role }: BNavProps) {
         <Icon name="search" size={20} color={COLORS.sub} />
         <Icon name="bell" size={20} color={COLORS.sub} />
         <Link
-          href="/compte/mot-de-passe"
-          title="Changer mon mot de passe"
+          href="/profil"
+          title="Mon profil"
+          aria-label="Mon profil"
           className="flex h-9 w-9 items-center justify-center rounded-full bg-sand text-[13px] font-bold transition-colors hover:bg-line"
         >
           {initials(firstName)}
