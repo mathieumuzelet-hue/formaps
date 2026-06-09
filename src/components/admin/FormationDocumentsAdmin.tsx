@@ -152,16 +152,16 @@ export function FormationDocumentsAdmin({ formationId }: { formationId: string }
           <h2 className="text-[15px] font-semibold text-ink">Ajouter un document</h2>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
-              <label className={LABEL}>Fichier PDF</label>
-              <input type="file" name="file" accept="application/pdf" required className={INPUT} />
+              <label htmlFor="doc-file" className={LABEL}>Fichier PDF</label>
+              <input id="doc-file" type="file" name="file" accept="application/pdf" required className={INPUT} />
             </div>
             <div>
-              <label className={LABEL}>Titre</label>
-              <input type="text" name="title" className={INPUT} />
+              <label htmlFor="doc-title" className={LABEL}>Titre</label>
+              <input id="doc-title" type="text" name="title" className={INPUT} />
             </div>
             <div>
-              <label className={LABEL}>Nombre de pages</label>
-              <input type="number" name="pages" defaultValue={0} min={0} className={INPUT} />
+              <label htmlFor="doc-pages" className={LABEL}>Nombre de pages</label>
+              <input id="doc-pages" type="number" name="pages" defaultValue={0} min={0} className={INPUT} />
             </div>
             <div className="md:col-span-2">
               <label className="flex items-center gap-2 text-[13px] text-ink">

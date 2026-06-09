@@ -207,6 +207,10 @@ function FormationForm({
   const [v, setV] = useState<FormValues>(initial)
   const [slugTouched, setSlugTouched] = useState(false)
 
+  // The create form and one inline edit form can be on screen at the same
+  // time, so input ids are scoped per entity.
+  const idp = mode === 'edit' && id ? `formation-${id}` : 'formation-new'
+
   const onSuccess = async () => {
     await utils.admin.formations.list.invalidate()
     setSlugTouched(false)
@@ -271,12 +275,12 @@ function FormationForm({
     <div className="rounded-[14px] border border-line bg-card p-5">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
-          <label className={LABEL}>Nom</label>
-          <input className={INPUT} value={v.name} onChange={(e) => onNameChange(e.target.value)} />
+          <label htmlFor={`${idp}-name`} className={LABEL}>Nom</label>
+          <input id={`${idp}-name`} className={INPUT} value={v.name} onChange={(e) => onNameChange(e.target.value)} />
         </div>
         <div>
-          <label className={LABEL}>Slug</label>
-          <input className={INPUT} value={v.slug} onChange={(e) => onSlugChange(e.target.value)} />
+          <label htmlFor={`${idp}-slug`} className={LABEL}>Slug</label>
+          <input id={`${idp}-slug`} className={INPUT} value={v.slug} onChange={(e) => onSlugChange(e.target.value)} />
           {mode === 'create' && (
             <p className="mt-1 text-[11.5px] text-faint">
               Identifiant d&apos;URL — généré depuis le nom, modifiable.
@@ -284,25 +288,27 @@ function FormationForm({
           )}
         </div>
         <div>
-          <label className={LABEL}>Tag</label>
-          <input className={INPUT} value={v.tag} onChange={(e) => set('tag', e.target.value)} />
+          <label htmlFor={`${idp}-tag`} className={LABEL}>Tag</label>
+          <input id={`${idp}-tag`} className={INPUT} value={v.tag} onChange={(e) => set('tag', e.target.value)} />
         </div>
         <div>
-          <label className={LABEL}>Icône</label>
-          <input className={INPUT} value={v.icon} onChange={(e) => set('icon', e.target.value)} />
+          <label htmlFor={`${idp}-icon`} className={LABEL}>Icône</label>
+          <input id={`${idp}-icon`} className={INPUT} value={v.icon} onChange={(e) => set('icon', e.target.value)} />
           <p className="mt-1 text-[11.5px] text-faint">Noms valides : {ICON_HINT}</p>
         </div>
         <div className="md:col-span-2">
-          <label className={LABEL}>Description</label>
+          <label htmlFor={`${idp}-description`} className={LABEL}>Description</label>
           <textarea
+            id={`${idp}-description`}
             className={`${INPUT} min-h-[70px]`}
             value={v.description}
             onChange={(e) => set('description', e.target.value)}
           />
         </div>
         <div>
-          <label className={LABEL}>Type</label>
+          <label htmlFor={`${idp}-kind`} className={LABEL}>Type</label>
           <select
+            id={`${idp}-kind`}
             className={INPUT}
             value={v.kind}
             onChange={(e) => set('kind', e.target.value as FormValues['kind'])}
@@ -313,8 +319,9 @@ function FormationForm({
         </div>
         {v.kind === 'sharepoint' && (
           <div>
-            <label className={LABEL}>URL SharePoint</label>
+            <label htmlFor={`${idp}-sharepoint-url`} className={LABEL}>URL SharePoint</label>
             <input
+              id={`${idp}-sharepoint-url`}
               className={INPUT}
               value={v.sharepointUrl}
               onChange={(e) => set('sharepointUrl', e.target.value)}
@@ -322,8 +329,9 @@ function FormationForm({
           </div>
         )}
         <div>
-          <label className={LABEL}>Nombre de documents</label>
+          <label htmlFor={`${idp}-doc-count`} className={LABEL}>Nombre de documents</label>
           <input
+            id={`${idp}-doc-count`}
             type="number"
             className={INPUT}
             value={v.docCount}
@@ -331,8 +339,9 @@ function FormationForm({
           />
         </div>
         <div>
-          <label className={LABEL}>Ordre</label>
+          <label htmlFor={`${idp}-order`} className={LABEL}>Ordre</label>
           <input
+            id={`${idp}-order`}
             type="number"
             className={INPUT}
             value={v.order}

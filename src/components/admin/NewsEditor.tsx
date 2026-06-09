@@ -172,8 +172,9 @@ export function NewsEditor({ id }: { id: string }) {
       <div className="rounded-[14px] border border-line bg-card p-6">
         <div className="space-y-5">
           <div>
-            <label className={LABEL}>Titre</label>
+            <label htmlFor="news-title" className={LABEL}>Titre</label>
             <input
+              id="news-title"
               className={`${INPUT} text-[18px] font-semibold`}
               value={title}
               onChange={(e) => {
@@ -185,8 +186,9 @@ export function NewsEditor({ id }: { id: string }) {
           </div>
 
           <div>
-            <label className={LABEL}>Chapô</label>
+            <label htmlFor="news-excerpt" className={LABEL}>Chapô</label>
             <textarea
+              id="news-excerpt"
               className={`${INPUT} min-h-[70px]`}
               value={excerpt}
               onChange={(e) => {
@@ -198,8 +200,9 @@ export function NewsEditor({ id }: { id: string }) {
           </div>
 
           <div>
-            <label className={LABEL}>Auteur</label>
+            <label htmlFor="news-author" className={LABEL}>Auteur</label>
             <input
+              id="news-author"
               className={INPUT}
               value={authorName}
               onChange={(e) => {
@@ -211,7 +214,7 @@ export function NewsEditor({ id }: { id: string }) {
           </div>
 
           <div>
-            <label className={LABEL}>Image de couverture</label>
+            <label htmlFor="news-cover" className={LABEL}>Image de couverture</label>
             {coverSrc && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -221,6 +224,7 @@ export function NewsEditor({ id }: { id: string }) {
               />
             )}
             <input
+              id="news-cover"
               type="file"
               accept="image/*"
               disabled={uploading}
