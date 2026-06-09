@@ -40,11 +40,13 @@ export function NewsEditor({ id }: { id: string }) {
   }, [query.data])
 
   const [saved, setSaved] = useState(false)
+  const [dirty, setDirty] = useState(false)
   const update = trpc.admin.news.update.useMutation({
     onSuccess: async () => {
       await utils.admin.news.byId.invalidate({ id })
       await utils.admin.news.list.invalidate()
       setSaved(true)
+      setDirty(false)
     },
   })
 
@@ -83,6 +85,18 @@ export function NewsEditor({ id }: { id: string }) {
       setUploading(false)
     }
   }
+
+  // Warn before closing the tab while there are unsaved edits. In-app Link
+  // navigation cannot be intercepted in the App Router; "Publier" is gated
+  // on dirty instead.
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
 
   if (query.isLoading) {
     return <p className="text-[14px] text-sub">Chargement…</p>
@@ -126,17 +140,25 @@ export function NewsEditor({ id }: { id: string }) {
           >
             {isPublished ? 'Publié' : 'Brouillon'}
           </span>
-          <Link
-            href={`/actualites/${article.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sand/50"
-          >
-            Voir
-          </Link>
+          {isPublished && (
+            <Link
+              href={`/actualites/${article.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sand/50"
+            >
+              Voir
+            </Link>
+          )}
+          {dirty && (
+            <span className="text-[12px] font-medium text-redink">
+              Modifications non enregistrées
+            </span>
+          )}
           <button
             type="button"
-            disabled={setStatus.isPending}
+            disabled={setStatus.isPending || dirty}
+            title={dirty ? 'Enregistrez vos modifications avant de publier' : undefined}
             onClick={() =>
               setStatus.mutate({ id, status: isPublished ? 'draft' : 'published' })
             }
@@ -157,6 +179,7 @@ export function NewsEditor({ id }: { id: string }) {
               onChange={(e) => {
                 setTitle(e.target.value)
                 setSaved(false)
+                setDirty(true)
               }}
             />
           </div>
@@ -169,6 +192,7 @@ export function NewsEditor({ id }: { id: string }) {
               onChange={(e) => {
                 setExcerpt(e.target.value)
                 setSaved(false)
+                setDirty(true)
               }}
             />
           </div>
@@ -181,6 +205,7 @@ export function NewsEditor({ id }: { id: string }) {
               onChange={(e) => {
                 setAuthorName(e.target.value)
                 setSaved(false)
+                setDirty(true)
               }}
             />
           </div>
@@ -213,6 +238,7 @@ export function NewsEditor({ id }: { id: string }) {
               onChange={(html) => {
                 setContentHtml(html)
                 setSaved(false)
+                setDirty(true)
               }}
             />
           </div>
