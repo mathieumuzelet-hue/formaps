@@ -41,6 +41,12 @@ interroge **BRAIN**, l'assistant IA documentaire (RAG via Dify).
   de configs de chunking, simulation locale, juge structurel par config,
   raffinement multi-tours et test de config manuelle. Nécessite
   `ANTHROPIC_API_KEY`.
+- **FAQ Builder** (`/admin/faq-builder`) — génération d'une FAQ depuis un
+  document PDF ou .docx (Claude Sonnet 4.6) : brouillons persistants, éditeur
+  des paires question/réponse (réordonnancement, ajout manuel, badges
+  d'origine), « Générer plus » (questions inédites, dédup + retry), export
+  **CSV au format Q&A de Dify** (la question de chaque paire est embedée à
+  l'import). Nécessite `ANTHROPIC_API_KEY`.
 
 ## Stack
 
@@ -50,11 +56,14 @@ interroge **BRAIN**, l'assistant IA documentaire (RAG via Dify).
 - **Auth.js (next-auth v5)** — sessions JWT (claim `passwordChangedAt` vérifié
   côté Node à chaque requête), mots de passe argon2id
 - **Tailwind CSS 4**, typographie Montserrat
-- **Vitest** + Testing Library (~380 tests)
+- **Vitest** + Testing Library (~440 tests) ; **CI GitHub Actions**
+  (lint + typecheck + tests + build) requise sur chaque PR et push `main`
 - **BRAIN** : proxy SSE serveur (`/api/brain`) vers un conteneur **Dify**
   séparé (`DIFY_API_URL`) — timeout de connexion, auto-heal discriminé par
   code d'erreur, journalisation `chat_queries` pour l'analyse FAQ-gaps
-- **Labo d'embed** : SDK Anthropic (Sonnet 4.6 / Opus 4.8), extraction `unpdf`,
+- **Outils Claude** (labo d'embed, FAQ Builder) : SDK Anthropic en tool use
+  forcé via le cœur partagé `src/server/claude-core.ts` (détection des sorties
+  tronquées à `max_tokens`), extraction `unpdf` (PDF) / `mammoth` (.docx),
   simulation de chunking `gpt-tokenizer` — aucun appel à l'API Dify
 
 ## Architecture (points notables)
@@ -118,8 +127,9 @@ Prérequis : Node ≥ 20, Docker.
 ## Tests
 
 ```bash
-npm test          # vitest run (~380 tests)
-npm run lint      # eslint (le dossier docs/ est ignoré : prototypes de design)
+npm test          # vitest run (~440 tests)
+npm run typecheck # tsc --noEmit
+npm run lint      # eslint --max-warnings 0 (docs/ ignoré : prototypes de design)
 npm run build     # build de production
 ```
 
