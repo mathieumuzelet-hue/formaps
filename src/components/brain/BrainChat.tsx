@@ -215,6 +215,8 @@ export function BrainChat({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             disabled={streaming}
+            // Mirrors the server-side MAX_QUERY_LENGTH guard (400 query_too_long).
+            maxLength={2000}
             placeholder="Écrivez votre question…"
             className="flex-1 bg-transparent text-[14.5px] text-ink placeholder:text-faint focus:outline-none disabled:opacity-60"
           />

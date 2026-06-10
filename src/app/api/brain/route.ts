@@ -1,13 +1,18 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 
 import { auth } from '@/server/auth'
 import { db } from '@/server/db'
 import { users, chatQueries } from '@/server/db/schema'
 import { streamChat } from '@/server/dify/client'
+import { shouldResetConversation } from '@/server/dify/heal'
 import { parseDifyEvent, parseSSELines } from '@/lib/dify/parse'
 import { relevanceThreshold, buildChatQueryValues } from '@/server/brain/chat-log'
 
 export const runtime = 'nodejs'
+
+const CONNECT_TIMEOUT_MS = 30_000
+
+const MAX_QUERY_LENGTH = 2000
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -29,6 +34,9 @@ export async function POST(request: Request): Promise<Response> {
     if (typeof body.query !== 'string' || body.query.trim() === '') {
       return json({ error: 'query is required' }, 400)
     }
+    if (body.query.length > MAX_QUERY_LENGTH) {
+      return json({ error: 'query_too_long' }, 400)
+    }
     query = body.query
   } catch {
     return json({ error: 'invalid body' }, 400)
@@ -48,8 +56,30 @@ export async function POST(request: Request): Promise<Response> {
     conversationId = null
   }
 
-  const callDify = (convId: string | null) =>
-    streamChat({ query, user: userId, conversationId: convId })
+  // One controller per attempt: aborts the upstream fetch if the client is
+  // already gone, or if Dify accepts the connection but never answers the
+  // headers. The timer is cleared as soon as headers arrive so long
+  // generations are never cut mid-stream (mid-stream client disconnects are
+  // propagated by the pipeThrough cancellation, not by this signal).
+  const callDify = async (convId: string | null): Promise<Response> => {
+    const controller = new AbortController()
+    // A signal aborted before addEventListener never fires the event.
+    if (request.signal.aborted) controller.abort()
+    const onAbort = () => controller.abort()
+    request.signal.addEventListener('abort', onAbort)
+    const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS)
+    try {
+      return await streamChat({
+        query,
+        user: userId,
+        conversationId: convId,
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+      request.signal.removeEventListener('abort', onAbort)
+    }
+  }
 
   let upstream: Response
   try {
@@ -65,10 +95,28 @@ export async function POST(request: Request): Promise<Response> {
   //     the model config per conversation, e.g. after changing the model).
   //   - 404 "Conversation Not Exists": the conversation is gone (e.g. the Dify
   //     database was reset/restored).
-  // Clear the stored conversation id and retry ONCE with a fresh conversation,
-  // so the user is never stuck. A 404 WITHOUT a conversation id is a real
-  // URL/config problem and must surface as an error (no retry).
+  // BUT Dify also returns 400 for causes unrelated to the conversation
+  // (invalid_param, app_unavailable, provider quota…): the error code is
+  // discriminated via shouldResetConversation before destroying the user's
+  // context. When the heal applies, clear the stored conversation id and retry
+  // ONCE with a fresh conversation, so the user is never stuck. A 404 WITHOUT
+  // a conversation id is a real URL/config problem and must surface as an
+  // error (no retry).
   if (!upstream.ok && (upstream.status === 400 || upstream.status === 404) && conversationId) {
+    // Consume the body: releases the undici socket AND lets us discriminate
+    // the Dify error code before destroying the user's conversation context.
+    let bodyText = ''
+    try {
+      bodyText = await upstream.text()
+    } catch {
+      /* ignore */
+    }
+    if (!shouldResetConversation(upstream.status, bodyText)) {
+      console.error(
+        `[brain] Dify ${upstream.status} non lié à la conversation: ${bodyText.slice(0, 500)}`,
+      )
+      return json({ error: 'dify_unavailable', status: upstream.status }, 502)
+    }
     console.warn(
       `[brain] ${upstream.status} sur conversation existante → reset conversation + retry`,
     )
@@ -135,14 +183,30 @@ export async function POST(request: Request): Promise<Response> {
       if (parsed.scores) endScores = parsed.scores
       if (parsed.conversationId) {
         streamConversationId = parsed.conversationId
-        if (!hadConversationId && !capturedConversationId && !errorSeen) {
-          capturedConversationId = true
-          const newId = parsed.conversationId
-          // Fire-and-forget: don't await, don't break the stream on error.
-          void Promise.resolve(
-            db.update(users).set({ difyConversationId: newId }).where(eq(users.id, userId)),
-          ).catch(() => {})
-        }
+      }
+      // Persist ONLY at message_end (success): persisting on the first delta
+      // raced the in-stream error purge (the two fire-and-forget UPDATEs are
+      // unordered) and could store a poisoned conversation id.
+      // (parsed.messageId is only ever set by message_end — see parse.ts.)
+      if (
+        parsed.messageId &&
+        !hadConversationId &&
+        !capturedConversationId &&
+        !errorSeen &&
+        streamConversationId
+      ) {
+        capturedConversationId = true
+        const newId = streamConversationId
+        // Fire-and-forget: don't await, don't break the stream on error.
+        void Promise.resolve(
+          db
+            .update(users)
+            .set({ difyConversationId: newId })
+            // Write-once: two parallel sends both starting without a stored
+            // conversation would otherwise overwrite each other (last write
+            // wins, orphaning one Dify conversation). First message_end wins.
+            .where(and(eq(users.id, userId), isNull(users.difyConversationId))),
+        ).catch(() => {})
       }
     }
   }
@@ -169,20 +233,25 @@ export async function POST(request: Request): Promise<Response> {
         buffer += decoder.decode()
         if (buffer.trim().length > 0) inspectFrames(buffer)
 
-        // Only log complete answers: a stream without message_end (network
-        // cut, model error) is noise for FAQ analysis.
-        if (!endMessageId || endScores === null || !streamConversationId) return
+        // Never log errored conversations as FAQ gaps, and only log streams
+        // that reached message_end (network cuts are noise). A message_end
+        // WITHOUT retrieval metadata is logged with zero scores — "no source
+        // at all" is exactly the FAQ-gap signal the admin screen exists for.
+        if (errorSeen || !endMessageId || !streamConversationId) return
         const values = buildChatQueryValues({
           query,
           answer,
           conversationId: streamConversationId,
           messageId: endMessageId,
           userId,
-          scores: endScores,
+          scores: endScores ?? [],
           threshold: relevanceThreshold(process.env.FAQ_RELEVANCE_THRESHOLD),
         })
-        // Fire-and-forget: logging must never delay or fail the response.
-        void Promise.resolve(db.insert(chatQueries).values(values)).catch((err) => {
+        // Fire-and-forget; duplicate message ids (replayed end frames) are
+        // expected noise, not errors — swallow them at the SQL level.
+        void Promise.resolve(
+          db.insert(chatQueries).values(values).onConflictDoNothing(),
+        ).catch((err) => {
           console.error('[brain] log chat_queries a échoué:', err)
         })
       } catch (err) {

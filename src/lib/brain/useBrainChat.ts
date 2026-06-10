@@ -147,7 +147,9 @@ export function useBrainChat(): UseBrainChat {
           const err = frameError(frame)
           if (err) {
             const text = difyErrorText(err)
-            updateAi((msg) => ({ ...msg, text }))
+            // Annotate instead of overwrite: keep whatever the model already
+            // streamed (a mid-generation failure should not eat visible text).
+            updateAi((msg) => ({ ...msg, text: msg.text ? `${msg.text}\n\n— ${text}` : text }))
             setStatus('error')
             errored = true
             break
@@ -165,7 +167,9 @@ export function useBrainChat(): UseBrainChat {
         const err = frameError(buffer)
         if (err) {
           const text = difyErrorText(err)
-          updateAi((msg) => ({ ...msg, text }))
+          // Annotate instead of overwrite: keep whatever the model already
+          // streamed (a mid-generation failure should not eat visible text).
+          updateAi((msg) => ({ ...msg, text: msg.text ? `${msg.text}\n\n— ${text}` : text }))
           setStatus('error')
           return
         }

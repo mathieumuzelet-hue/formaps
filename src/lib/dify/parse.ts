@@ -124,8 +124,9 @@ export function parseSSELines(chunk: string): string[] {
   const payloads: string[] = []
   for (const line of chunk.split('\n')) {
     const trimmed = line.replace(/\r$/, '')
-    if (trimmed.startsWith('data: ')) {
-      payloads.push(trimmed.slice('data: '.length))
+    if (trimmed.startsWith('data:')) {
+      // SSE spec: the field value starts after 'data:' plus ONE optional space.
+      payloads.push(trimmed.slice(5).replace(/^ /, ''))
     }
   }
   return payloads

@@ -1,10 +1,12 @@
-import { beforeEach, expect, test, vi } from 'vitest'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 vi.mock('@/server/auth', () => ({ auth: vi.fn() }))
 vi.mock('@/server/db', () => ({ db: {} }))
 
 const selectOrderBy = vi.fn()
-const selectWhere = vi.fn(() => ({ orderBy: selectOrderBy }))
+const selectWhere = vi.fn((_where: unknown) => ({ orderBy: selectOrderBy }))
 const selectFrom = vi.fn(() => ({ where: selectWhere }))
 const dbSelect = vi.fn(() => ({ from: selectFrom }))
 const dbMock = { select: dbSelect } as never
@@ -27,6 +29,10 @@ function caller(role: 'admin' | 'employee' = 'admin') {
 beforeEach(() => {
   vi.clearAllMocks()
   selectOrderBy.mockResolvedValue([])
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 test('non-admin → FORBIDDEN', async () => {
@@ -55,4 +61,23 @@ test('regroupe les lignes retournées par la DB', async () => {
 
   expect(groups).toHaveLength(1)
   expect(groups[0]).toMatchObject({ question: 'Caisse Mercalys ?', count: 2, dislikes: 1 })
+})
+
+test('seuil appliqué à la lecture : FAQ_RELEVANCE_THRESHOLD rétroactif, hasRelevantSource ignoré', async () => {
+  // Insérée quand le seuil valait 0.5 : retrievalScoreMax 0.6, hasRelevantSource true.
+  // Avec FAQ_RELEVANCE_THRESHOLD=0.7 elle DOIT matcher le filtre (score < 0.7),
+  // et une ligne à 0.8 ne doit pas matcher — donc la clause compare le score
+  // stocké au seuil COURANT et n'interroge plus le cache d'insert.
+  vi.stubEnv('FAQ_RELEVANCE_THRESHOLD', '0.7')
+
+  await caller().list()
+
+  const where = selectWhere.mock.calls[0]?.[0] as SQL
+  const { sql, params } = new PgDialect().sqlToQuery(where)
+
+  expect(sql).toContain('"retrieval_score_max" is null')
+  expect(sql).toContain('"retrieval_score_max" <')
+  expect(params).toContain(0.7)
+  expect(params).toContain('dislike')
+  expect(sql).not.toContain('has_relevant_source')
 })

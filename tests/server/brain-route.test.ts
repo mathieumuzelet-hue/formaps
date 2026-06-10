@@ -1,4 +1,5 @@
 import { beforeEach, expect, test, vi } from 'vitest'
+import { and, eq, isNull } from 'drizzle-orm'
 
 // --- Mocks ---------------------------------------------------------------
 const auth = vi.fn()
@@ -17,7 +18,8 @@ const selectLimit = vi.fn().mockResolvedValue([{ difyConversationId: null }])
 const dbSelect = vi.fn(() => ({
   from: () => ({ where: () => ({ limit: selectLimit }) }),
 }))
-const insertValues = vi.fn().mockResolvedValue(undefined)
+const insertConflict = vi.fn().mockResolvedValue(undefined)
+const insertValues = vi.fn(() => ({ onConflictDoNothing: insertConflict }))
 const dbInsert = vi.fn(() => ({ values: insertValues }))
 vi.mock('@/server/db', () => ({
   db: { select: () => dbSelect(), update: () => dbUpdate(), insert: () => dbInsert() },
@@ -28,6 +30,7 @@ vi.mock('@/server/db/schema', () => ({
 }))
 
 import { POST } from '@/app/api/brain/route'
+import { users } from '@/server/db/schema'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -59,7 +62,7 @@ test('authentifié + streamChat ok → 200, SSE relayé octet pour octet', async
   const sse =
     'data: {"event":"message","answer":"Bon","conversation_id":"cv-99"}\n\n' +
     'data: {"event":"message","answer":"jour"}\n\n' +
-    'data: {"event":"message_end","conversation_id":"cv-99"}\n\n'
+    'data: {"event":"message_end","id":"msg-99","conversation_id":"cv-99"}\n\n'
 
   const upstreamBody = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -77,9 +80,35 @@ test('authentifié + streamChat ok → 200, SSE relayé octet pour octet', async
   const relayed = await res.text()
   expect(relayed).toBe(sse)
 
-  // conversation id was absent → an update should have been attempted.
+  // conversation id was absent → an update should have been attempted at
+  // message_end (NOT at the first delta), with a write-once where clause.
   expect(dbUpdate).toHaveBeenCalled()
   expect(updateSet).toHaveBeenCalledWith({ difyConversationId: 'cv-99' })
+  expect(updateWhere).toHaveBeenCalledWith(
+    and(eq(users.id, 'u1'), isNull(users.difyConversationId)),
+  )
+})
+
+test('persistance UNIQUEMENT au message_end : un event error après les deltas → pas de persist', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // Pas de conversation stockée : Dify en crée une, le modèle streame, PUIS échoue.
+  selectLimit.mockResolvedValue([{ difyConversationId: null }])
+  const sse =
+    'data: {"event":"message","answer":"début","conversation_id":"cv-poison"}\n\n' +
+    'data: {"event":"error","message":"provider down"}\n\n' +
+    'data: {"event":"message_end","id":"msg-1","conversation_id":"cv-poison"}\n\n'
+  streamChat.mockResolvedValue(new Response(streamFrom(sse), { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'salut' }))
+  expect(res.status).toBe(200)
+  await res.text()
+  await new Promise((r) => setTimeout(r, 0))
+
+  // L'id de la conversation empoisonnée n'est JAMAIS persisté : seule la
+  // purge à null a lieu (les deux UPDATEs fire-and-forget ne sont pas
+  // ordonnés ; persister au premier delta pouvait stocker un id poison).
+  expect(updateSet).not.toHaveBeenCalledWith({ difyConversationId: 'cv-poison' })
+  expect(updateSet).toHaveBeenCalledWith({ difyConversationId: null })
 })
 
 test('query manquante → 400', async () => {
@@ -150,6 +179,25 @@ test('auto-heal: 404 sur conversation existante (base Dify réinitialisée) → 
   expect(streamChat).toHaveBeenCalledTimes(2)
 })
 
+test('auto-heal discriminé : 400 invalid_param sur conversation existante → 502 SANS purge ni retry', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // L'utilisateur a une conversation stockée parfaitement valide.
+  selectLimit.mockResolvedValue([{ difyConversationId: 'cv-valide' }])
+  // 400 SANS rapport avec la conversation (mauvais input, config app…).
+  streamChat.mockResolvedValue(
+    new Response('{"code":"invalid_param","message":"var x is required"}', { status: 400 }),
+  )
+
+  const res = await POST(makeRequest({ query: 'salut' }))
+
+  expect(res.status).toBe(502)
+  expect(await res.json()).toEqual({ error: 'dify_unavailable', status: 400 })
+  // Le contexte de conversation de l'utilisateur est PRÉSERVÉ.
+  expect(updateSet).not.toHaveBeenCalledWith({ difyConversationId: null })
+  // Et aucun retry inutile.
+  expect(streamChat).toHaveBeenCalledTimes(1)
+})
+
 test('404 SANS conversation stockée → 502 direct, aucun retry', async () => {
   auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
   // Pas de conversation stockée : un 404 = vrai problème d'URL/config Dify.
@@ -178,6 +226,149 @@ test('auto-heal: 404 aussi au retry → 502, pas de boucle', async () => {
   expect(await res.json()).toEqual({ error: 'dify_unavailable', status: 404 })
   // Exactement 2 appels : l'original + UN retry, jamais plus.
   expect(streamChat).toHaveBeenCalledTimes(2)
+})
+
+test('passe un AbortSignal à streamChat (timeout connexion + abort client)', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  const sse = 'data: {"event":"message","answer":"ok","conversation_id":"cv-1"}\n\n'
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(sse))
+      controller.close()
+    },
+  })
+  streamChat.mockResolvedValue(new Response(body, { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'hello' }))
+  expect(res.status).toBe(200)
+
+  const args = streamChat.mock.calls[0][0] as { signal?: unknown }
+  expect(args.signal).toBeInstanceOf(AbortSignal)
+})
+
+test('abort client AVANT les headers → propagé au fetch Dify → 502', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  const clientAbort = new AbortController()
+  streamChat.mockImplementation((args: { signal?: AbortSignal }) => {
+    // Le client se déconnecte pendant la phase headers.
+    clientAbort.abort()
+    // Avec le plumbing, le signal relayé est déjà aborté → fetch rejette
+    // (comportement undici). Sans plumbing, l'abort est invisible et Dify
+    // « répond » normalement.
+    if (args.signal?.aborted) return Promise.reject(new Error('This operation was aborted'))
+    return Promise.resolve(
+      new Response(streamFrom('data: {"event":"message","answer":"ok"}\n\n'), { status: 200 }),
+    )
+  })
+
+  const request = new Request('http://localhost/api/brain', {
+    method: 'POST',
+    body: JSON.stringify({ query: 'hello' }),
+    headers: { 'Content-Type': 'application/json' },
+    signal: clientAbort.signal,
+  })
+
+  const res = await POST(request)
+  // L'abort pré-stream tombe dans le catch existant → 502, pas de pendaison.
+  expect(res.status).toBe(502)
+})
+
+test('signal client DÉJÀ aborté avant POST → streamChat reçoit un signal aborté → 502 immédiat', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // Le client est parti AVANT même l'appel : addEventListener('abort') ne
+  // refire pas sur un signal déjà aborté (spec AbortSignal), le controller
+  // doit donc être aborté explicitement à la création.
+  const clientAbort = new AbortController()
+  clientAbort.abort()
+
+  streamChat.mockImplementation((args: { signal?: AbortSignal }) => {
+    // Comportement undici : fetch avec un signal déjà aborté rejette direct.
+    if (args.signal?.aborted) return Promise.reject(new Error('This operation was aborted'))
+    return Promise.resolve(
+      new Response(streamFrom('data: {"event":"message","answer":"ok"}\n\n'), { status: 200 }),
+    )
+  })
+
+  const request = new Request('http://localhost/api/brain', {
+    method: 'POST',
+    body: JSON.stringify({ query: 'hello' }),
+    headers: { 'Content-Type': 'application/json' },
+    signal: clientAbort.signal,
+  })
+
+  const res = await POST(request)
+  expect(res.status).toBe(502)
+  const args = streamChat.mock.calls[0][0] as { signal: AbortSignal }
+  expect(args.signal.aborted).toBe(true)
+})
+
+test('Dify muet pendant la phase headers → timeout de connexion 30 s → 502', async () => {
+  vi.useFakeTimers()
+  try {
+    auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+    // Dify accepte la connexion mais n'envoie jamais les headers : la
+    // promesse ne se résout que si le signal du caller est aborté.
+    streamChat.mockImplementation(
+      (args: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          args.signal?.addEventListener(
+            'abort',
+            () => reject(new Error('The operation timed out')),
+            { once: true },
+          )
+        }),
+    )
+
+    const resPromise = POST(makeRequest({ query: 'hello' }))
+    await vi.advanceTimersByTimeAsync(30_000)
+    const res = await resPromise
+    expect(res.status).toBe(502)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test('le timer 30 s ne couvre QUE les headers : une génération longue n’est jamais coupée mid-stream', async () => {
+  vi.useFakeTimers()
+  try {
+    auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+    // Mock fidèle à undici : aborter le signal APRÈS les headers erre le body
+    // en cours de lecture. Si le timer de connexion n'était pas cleared à
+    // l'arrivée des headers, l'avance de 30 s ci-dessous couperait le stream.
+    let push!: (s: string) => void
+    let close!: () => void
+    streamChat.mockImplementation((args: { signal?: AbortSignal }) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          args.signal?.addEventListener(
+            'abort',
+            () => controller.error(new Error('This operation was aborted')),
+            { once: true },
+          )
+          push = (s) => controller.enqueue(new TextEncoder().encode(s))
+          close = () => controller.close()
+        },
+      })
+      return Promise.resolve(new Response(body, { status: 200 }))
+    })
+
+    const res = await POST(makeRequest({ query: 'hello' }))
+    expect(res.status).toBe(200)
+
+    // Headers arrivés, la génération démarre…
+    push('data: {"event":"message","answer":"longue","conversation_id":"cv-1"}\n\n')
+    // …et dépasse largement la fenêtre de connexion de 30 s.
+    await vi.advanceTimersByTimeAsync(30_000)
+    push('data: {"event":"message","answer":" génération"}\n\n')
+    close()
+
+    // Le body n'a été ni coupé ni mis en erreur : tout est relayé.
+    const relayed = await res.text()
+    expect(relayed).toContain('longue')
+    expect(relayed).toContain(' génération')
+  } finally {
+    vi.useRealTimers()
+  }
 })
 
 test('streamChat throw → 502', async () => {
@@ -219,6 +410,9 @@ test('log : insert chat_queries avec les agrégats après message_end', async ()
     retrievalCount: 2,
     hasRelevantSource: true,
   })
+  // Les message_end rejoués (frames dupliquées) sont du bruit attendu :
+  // avalés au niveau SQL, pas remontés en erreur.
+  expect(insertConflict).toHaveBeenCalled()
 })
 
 test('log : seuil FAQ_RELEVANCE_THRESHOLD personnalisé respecté', async () => {
@@ -286,9 +480,70 @@ test('self-heal : event error sur NOUVELLE conversation → l’id capturé n’
   expect(updateSet).not.toHaveBeenCalledWith({ difyConversationId: 'cv-naissante' })
 })
 
+test('log : un stream en erreur n’est JAMAIS loggé comme FAQ-gap, même avec message_end complet', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // L'erreur in-stream précède un message_end complet (id + conversation +
+  // metadata) : la réponse est cassée, la logger polluerait l'écran FAQ-gaps.
+  const sse =
+    'data: {"event":"message","answer":"début","conversation_id":"cv-1"}\n\n' +
+    'data: {"event":"error","message":"provider down"}\n\n' +
+    'data: {"event":"message_end","id":"msg-1","conversation_id":"cv-1","metadata":{"retriever_resources":[{"score":0.9}]}}\n\n'
+  streamChat.mockResolvedValue(new Response(streamFrom(sse), { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'q' }))
+  await res.text()
+  await new Promise((r) => setTimeout(r, 0))
+
+  expect(insertValues).not.toHaveBeenCalled()
+})
+
+test('log : message_end SANS metadata → insert avec 0 scores (le signal FAQ-gap par excellence)', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // Dify a répondu sans la moindre source : c'est exactement ce que l'écran
+  // FAQ-gaps existe pour remonter — pas une raison de ne pas logger.
+  const sse =
+    'data: {"event":"message","answer":"Aucune idée"}\n\n' +
+    'data: {"event":"message_end","id":"msg-1","conversation_id":"cv-1"}\n\n'
+  streamChat.mockResolvedValue(new Response(streamFrom(sse), { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'q' }))
+  await res.text()
+  await new Promise((r) => setTimeout(r, 0))
+
+  expect(insertValues).toHaveBeenCalledWith(
+    expect.objectContaining({
+      retrievalScoreMax: null,
+      retrievalCount: 0,
+      hasRelevantSource: false,
+    }),
+  )
+})
+
+test('query > 2000 caractères → 400 query_too_long, Dify JAMAIS appelé', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+
+  const res = await POST(makeRequest({ query: 'a'.repeat(2001) }))
+
+  expect(res.status).toBe(400)
+  expect(await res.json()).toEqual({ error: 'query_too_long' })
+  expect(streamChat).not.toHaveBeenCalled()
+})
+
+test('query de 2000 caractères exactement → acceptée (borne inclusive)', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  streamChat.mockResolvedValue(
+    new Response(streamFrom('data: {"event":"message","answer":"ok"}\n\n'), { status: 200 }),
+  )
+
+  const res = await POST(makeRequest({ query: 'a'.repeat(2000) }))
+
+  expect(res.status).toBe(200)
+  expect(streamChat).toHaveBeenCalledTimes(1)
+})
+
 test('log : un échec d’insert n’affecte ni le statut ni les octets relayés', async () => {
   auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
-  insertValues.mockRejectedValueOnce(new Error('db down'))
+  insertConflict.mockRejectedValueOnce(new Error('db down'))
   const sse =
     'data: {"event":"message","answer":"ok","conversation_id":"cv-1"}\n\n' +
     'data: {"event":"message_end","id":"msg-1","conversation_id":"cv-1","metadata":{}}\n\n'
