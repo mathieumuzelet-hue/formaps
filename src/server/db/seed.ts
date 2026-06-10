@@ -6,7 +6,7 @@ import {
   users,
   formations,
   formationDocuments,
-  userFormationProgress,
+  userDocumentViews,
 } from './schema'
 
 function addDays(base: Date, days: number): string {
@@ -44,7 +44,7 @@ async function main() {
   const camillePassword = process.env.SEED_CAMILLE_PASSWORD ?? 'camille1234'
 
   // Idempotent: clear in FK-safe order, then re-insert.
-  await db.delete(userFormationProgress)
+  await db.delete(userDocumentViews)
   await db.delete(formationDocuments)
   await db.delete(users)
   await db.delete(formations)
@@ -149,8 +149,6 @@ async function main() {
     .values(formationData.map((f, index) => ({ ...f, order: index })))
     .returning()
 
-  const formationBySlug = new Map(insertedFormations.map((f) => [f.slug, f]))
-
   // 2 users (argon2id hashed passwords)
   const adminHash = await argon2.hash(adminPassword, { type: argon2.argon2id })
   const camilleHash = await argon2.hash(camillePassword, { type: argon2.argon2id })
@@ -175,33 +173,11 @@ async function main() {
     ])
     .returning()
 
-  const camille = insertedUsers.find((u) => u.email === 'camille@aps.fr')!
-
-  // Progress for camille on first 3 formations
-  await db.insert(userFormationProgress).values([
-    {
-      userId: camille.id,
-      formationId: formationBySlug.get('mercalys')!.id,
-      status: 'in_progress',
-      progressPercent: 70,
-    },
-    {
-      userId: camille.id,
-      formationId: formationBySlug.get('encaissement')!.id,
-      status: 'in_progress',
-      progressPercent: 30,
-    },
-    {
-      userId: camille.id,
-      formationId: formationBySlug.get('comptabilite')!.id,
-      status: 'done',
-      progressPercent: 100,
-    },
-  ])
-
+  // La progression est désormais automatique (vues de documents) : le seed ne
+  // crée ni document ni vue — tout le monde démarre à 0 %.
   console.log('✅ seed ok')
   console.log(
-    `   stores: 1 · formations: ${insertedFormations.length} · users: ${insertedUsers.length} · progress: 3`,
+    `   stores: 1 · formations: ${insertedFormations.length} · users: ${insertedUsers.length}`,
   )
   process.exit(0)
 }
