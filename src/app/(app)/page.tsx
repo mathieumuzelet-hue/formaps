@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 import { auth } from '@/server/auth'
 import { getServerCaller } from '@/server/trpc/server'
-import { joursLabel } from '@/lib/home-format'
+import { joursLabel, plusQuePrefix } from '@/lib/home-format'
 import { BRoute } from '@/components/route/BRoute'
 import { Icon } from '@/components/ui/Icon'
 
@@ -44,7 +44,7 @@ export default async function HomePage() {
             Votre trajet · Magasin de {store.name.toUpperCase()}
           </div>
           <h1 className="font-serif text-[27px] font-medium leading-[1.05] tracking-[-0.02em] md:text-[38px]">
-            Bonjour {firstName}, plus que{' '}
+            Bonjour {firstName}, {plusQuePrefix(store.joursRestants)}
             <span className="text-red">{joursLabel(store.joursRestants)}</span>.
           </h1>
         </div>

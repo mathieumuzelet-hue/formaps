@@ -144,7 +144,7 @@ export default async function FormationDetailPage({
               style={{ width: `${percent}%` }}
             />
           </div>
-          {formation.sharepointUrl ? (
+          {formation.sharepointUrl && (
             <a
               href={formation.sharepointUrl}
               target="_blank"
@@ -154,11 +154,6 @@ export default async function FormationDetailPage({
               <Icon name="external" size={16} color="#8A7F6E" /> Ouvrir sur
               SharePoint
             </a>
-          ) : (
-            <div className="mt-4 flex items-center gap-[9px] border-t border-line pt-[14px] text-[13px] font-bold text-sub">
-              <Icon name="external" size={16} color="#8A7F6E" /> Ouvrir sur
-              SharePoint
-            </div>
           )}
           <MarkDoneButton formationId={formation.id} percent={percent} />
         </div>

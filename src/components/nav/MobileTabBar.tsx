@@ -10,6 +10,7 @@ const TABS: ReadonlyArray<readonly [href: string, icon: string, label: string]> 
     ['/', 'home', 'Accueil'],
     ['/formations', 'book', 'Former'],
     ['/brain', 'brain', 'BRAIN'],
+    ['/actualites', 'news', 'Actus'],
     ['/profil', 'user', 'Profil'],
   ]
 

@@ -108,7 +108,7 @@ export function FormationDocumentsAdmin({ formationId }: { formationId: string }
                         {doc.order}. {doc.title}
                       </span>
                       {doc.isNew && (
-                        <span className="rounded-full bg-redSoft px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-red">
+                        <span className="rounded-full bg-redsoft px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-red">
                           Nouveau
                         </span>
                       )}
@@ -133,7 +133,7 @@ export function FormationDocumentsAdmin({ formationId }: { formationId: string }
                         del.mutate({ docId: doc.id })
                       }
                     }}
-                    className="rounded-lg border border-redSoft px-3 py-1.5 text-[13px] font-medium text-red hover:bg-redSoft disabled:opacity-50"
+                    className="rounded-lg border border-redsoft px-3 py-1.5 text-[13px] font-medium text-red hover:bg-redsoft disabled:opacity-50"
                   >
                     Supprimer
                   </button>
@@ -152,16 +152,16 @@ export function FormationDocumentsAdmin({ formationId }: { formationId: string }
           <h2 className="text-[15px] font-semibold text-ink">Ajouter un document</h2>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
-              <label className={LABEL}>Fichier PDF</label>
-              <input type="file" name="file" accept="application/pdf" required className={INPUT} />
+              <label htmlFor="doc-file" className={LABEL}>Fichier PDF</label>
+              <input id="doc-file" type="file" name="file" accept="application/pdf" required className={INPUT} />
             </div>
             <div>
-              <label className={LABEL}>Titre</label>
-              <input type="text" name="title" className={INPUT} />
+              <label htmlFor="doc-title" className={LABEL}>Titre</label>
+              <input id="doc-title" type="text" name="title" className={INPUT} />
             </div>
             <div>
-              <label className={LABEL}>Nombre de pages</label>
-              <input type="number" name="pages" defaultValue={0} min={0} className={INPUT} />
+              <label htmlFor="doc-pages" className={LABEL}>Nombre de pages</label>
+              <input id="doc-pages" type="number" name="pages" defaultValue={0} min={0} className={INPUT} />
             </div>
             <div className="md:col-span-2">
               <label className="flex items-center gap-2 text-[13px] text-ink">

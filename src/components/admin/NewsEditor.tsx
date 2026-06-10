@@ -40,11 +40,13 @@ export function NewsEditor({ id }: { id: string }) {
   }, [query.data])
 
   const [saved, setSaved] = useState(false)
+  const [dirty, setDirty] = useState(false)
   const update = trpc.admin.news.update.useMutation({
     onSuccess: async () => {
       await utils.admin.news.byId.invalidate({ id })
       await utils.admin.news.list.invalidate()
       setSaved(true)
+      setDirty(false)
     },
   })
 
@@ -83,6 +85,18 @@ export function NewsEditor({ id }: { id: string }) {
       setUploading(false)
     }
   }
+
+  // Warn before closing the tab while there are unsaved edits. In-app Link
+  // navigation cannot be intercepted in the App Router; "Publier" is gated
+  // on dirty instead.
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
 
   if (query.isLoading) {
     return <p className="text-[14px] text-sub">Chargement…</p>
@@ -126,17 +140,25 @@ export function NewsEditor({ id }: { id: string }) {
           >
             {isPublished ? 'Publié' : 'Brouillon'}
           </span>
-          <Link
-            href={`/actualites/${article.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sand/50"
-          >
-            Voir
-          </Link>
+          {isPublished && (
+            <Link
+              href={`/actualites/${article.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sand/50"
+            >
+              Voir
+            </Link>
+          )}
+          {dirty && (
+            <span className="text-[12px] font-medium text-redink">
+              Modifications non enregistrées
+            </span>
+          )}
           <button
             type="button"
-            disabled={setStatus.isPending}
+            disabled={setStatus.isPending || dirty}
+            title={dirty ? 'Enregistrez vos modifications avant de publier' : undefined}
             onClick={() =>
               setStatus.mutate({ id, status: isPublished ? 'draft' : 'published' })
             }
@@ -150,43 +172,49 @@ export function NewsEditor({ id }: { id: string }) {
       <div className="rounded-[14px] border border-line bg-card p-6">
         <div className="space-y-5">
           <div>
-            <label className={LABEL}>Titre</label>
+            <label htmlFor="news-title" className={LABEL}>Titre</label>
             <input
+              id="news-title"
               className={`${INPUT} text-[18px] font-semibold`}
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value)
                 setSaved(false)
+                setDirty(true)
               }}
             />
           </div>
 
           <div>
-            <label className={LABEL}>Chapô</label>
+            <label htmlFor="news-excerpt" className={LABEL}>Chapô</label>
             <textarea
+              id="news-excerpt"
               className={`${INPUT} min-h-[70px]`}
               value={excerpt}
               onChange={(e) => {
                 setExcerpt(e.target.value)
                 setSaved(false)
+                setDirty(true)
               }}
             />
           </div>
 
           <div>
-            <label className={LABEL}>Auteur</label>
+            <label htmlFor="news-author" className={LABEL}>Auteur</label>
             <input
+              id="news-author"
               className={INPUT}
               value={authorName}
               onChange={(e) => {
                 setAuthorName(e.target.value)
                 setSaved(false)
+                setDirty(true)
               }}
             />
           </div>
 
           <div>
-            <label className={LABEL}>Image de couverture</label>
+            <label htmlFor="news-cover" className={LABEL}>Image de couverture</label>
             {coverSrc && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -196,6 +224,7 @@ export function NewsEditor({ id }: { id: string }) {
               />
             )}
             <input
+              id="news-cover"
               type="file"
               accept="image/*"
               disabled={uploading}
@@ -213,6 +242,7 @@ export function NewsEditor({ id }: { id: string }) {
               onChange={(html) => {
                 setContentHtml(html)
                 setSaved(false)
+                setDirty(true)
               }}
             />
           </div>

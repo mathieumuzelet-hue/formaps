@@ -17,11 +17,20 @@ export default async function FormationsPage() {
           téléchargement PDF arrivent ensuite.
         </p>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {formations.map((formation, i) => (
-          <FormationCard key={formation.id} formation={formation} index={i} />
-        ))}
-      </div>
+      {formations.length === 0 ? (
+        <div className="rounded-[14px] border border-line bg-surface px-6 py-7">
+          <p className="text-[14.5px] leading-[1.5] text-sub">
+            Aucune formation disponible pour le moment — les contenus arrivent
+            bientôt.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {formations.map((formation, i) => (
+            <FormationCard key={formation.id} formation={formation} index={i} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -8,3 +8,12 @@ export function joursLabel(n: number): string {
   if (n <= 0) return "aujourd'hui"
   return n === 1 ? '1 jour' : `${n} jours`
 }
+
+/**
+ * Prefix for the countdown sentence, with French elision:
+ * `plus que 18 jours` but `plus qu'aujourd'hui` (no space after the
+ * apostrophe). Pairs with `joursLabel`.
+ */
+export function plusQuePrefix(n: number): string {
+  return n <= 0 ? "plus qu'" : 'plus que '
+}

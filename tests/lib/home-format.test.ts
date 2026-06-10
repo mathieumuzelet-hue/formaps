@@ -1,4 +1,4 @@
-import { joursLabel } from '@/lib/home-format'
+import { joursLabel, plusQuePrefix } from '@/lib/home-format'
 import { expect, test } from 'vitest'
 
 test('pluriel pour plusieurs jours', () => {
@@ -15,4 +15,14 @@ test("zéro jour → aujourd'hui", () => {
 
 test('jours négatifs traités comme aujourd\'hui', () => {
   expect(joursLabel(-3)).toBe("aujourd'hui")
+})
+
+test("plusQuePrefix élide devant aujourd'hui", () => {
+  expect(plusQuePrefix(0)).toBe("plus qu'")
+  expect(plusQuePrefix(-2)).toBe("plus qu'")
+})
+
+test('plusQuePrefix garde « plus que » devant un nombre de jours', () => {
+  expect(plusQuePrefix(1)).toBe('plus que ')
+  expect(plusQuePrefix(18)).toBe('plus que ')
 })

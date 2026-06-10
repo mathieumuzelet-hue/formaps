@@ -175,16 +175,18 @@ export function UtilisateursAdmin() {
 }
 
 function StoreSelect({
+  id,
   stores,
   value,
   onChange,
 }: {
+  id: string
   stores: StoreOption[]
   value: string
   onChange: (v: string) => void
 }) {
   return (
-    <select className={INPUT} value={value} onChange={(e) => onChange(e.target.value)}>
+    <select id={id} className={INPUT} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">Aucun</option>
       {stores.map((s) => (
         <option key={s.id} value={s.id}>
@@ -220,16 +222,17 @@ function UserCreateForm({
     <div className="rounded-[14px] border border-line bg-card p-5">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
-          <label className={LABEL}>Email</label>
-          <input className={INPUT} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <label htmlFor="user-new-email" className={LABEL}>Email</label>
+          <input id="user-new-email" className={INPUT} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div>
-          <label className={LABEL}>Prénom</label>
-          <input className={INPUT} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          <label htmlFor="user-new-firstname" className={LABEL}>Prénom</label>
+          <input id="user-new-firstname" className={INPUT} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
         </div>
         <div>
-          <label className={LABEL}>Mot de passe (min. 8)</label>
+          <label htmlFor="user-new-password" className={LABEL}>Mot de passe (min. 8)</label>
           <input
+            id="user-new-password"
             className={INPUT}
             type="password"
             value={password}
@@ -237,8 +240,9 @@ function UserCreateForm({
           />
         </div>
         <div>
-          <label className={LABEL}>Rôle</label>
+          <label htmlFor="user-new-role" className={LABEL}>Rôle</label>
           <select
+            id="user-new-role"
             className={INPUT}
             value={role}
             onChange={(e) => setRole(e.target.value as 'employee' | 'admin')}
@@ -248,8 +252,8 @@ function UserCreateForm({
           </select>
         </div>
         <div>
-          <label className={LABEL}>Magasin</label>
-          <StoreSelect stores={stores} value={storeId} onChange={setStoreId} />
+          <label htmlFor="user-new-store" className={LABEL}>Magasin</label>
+          <StoreSelect id="user-new-store" stores={stores} value={storeId} onChange={setStoreId} />
         </div>
       </div>
 
@@ -312,12 +316,13 @@ function UserEditForm({
       <p className="mb-3 text-[13px] font-medium text-sub">{user.email}</p>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
-          <label className={LABEL}>Prénom</label>
-          <input className={INPUT} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          <label htmlFor={`user-${user.id}-firstname`} className={LABEL}>Prénom</label>
+          <input id={`user-${user.id}-firstname`} className={INPUT} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
         </div>
         <div>
-          <label className={LABEL}>Rôle</label>
+          <label htmlFor={`user-${user.id}-role`} className={LABEL}>Rôle</label>
           <select
+            id={`user-${user.id}-role`}
             className={INPUT}
             value={role}
             onChange={(e) => setRole(e.target.value as 'employee' | 'admin')}
@@ -327,12 +332,13 @@ function UserEditForm({
           </select>
         </div>
         <div>
-          <label className={LABEL}>Magasin</label>
-          <StoreSelect stores={stores} value={storeId} onChange={setStoreId} />
+          <label htmlFor={`user-${user.id}-store`} className={LABEL}>Magasin</label>
+          <StoreSelect id={`user-${user.id}-store`} stores={stores} value={storeId} onChange={setStoreId} />
         </div>
         <div>
-          <label className={LABEL}>Nouveau mot de passe (laisser vide = inchangé)</label>
+          <label htmlFor={`user-${user.id}-password`} className={LABEL}>Nouveau mot de passe (laisser vide = inchangé)</label>
           <input
+            id={`user-${user.id}-password`}
             className={INPUT}
             type="password"
             value={password}
