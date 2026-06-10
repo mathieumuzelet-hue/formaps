@@ -13,7 +13,7 @@ vi.mock('@/server/auth/generate-password', () => ({ generatePassword }))
 
 const updateReturning = vi.fn()
 const updateWhere = vi.fn(() => ({ returning: updateReturning }))
-const updateSet = vi.fn(() => ({ where: updateWhere }))
+const updateSet = vi.fn((_values: Record<string, unknown>) => ({ where: updateWhere }))
 const dbMock = { update: vi.fn(() => ({ set: updateSet })) } as never
 
 import { adminRouter } from '@/server/trpc/routers/admin'
@@ -58,7 +58,7 @@ test('users.update SANS password → passwordChangedAt PAS touché', async () =>
   await caller().users.update({ id: USER_ID, firstName: 'Mia' })
 
   expect(hashPassword).not.toHaveBeenCalled()
-  const setArg = updateSet.mock.calls[0][0] as Record<string, unknown>
+  const setArg = updateSet.mock.calls[0][0]
   expect(setArg).not.toHaveProperty('passwordChangedAt')
   expect(setArg).not.toHaveProperty('passwordHash')
 })
