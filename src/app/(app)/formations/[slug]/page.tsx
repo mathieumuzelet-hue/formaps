@@ -135,13 +135,22 @@ export default async function FormationDetailPage({
 
       {/* Right column */}
       <div className="flex flex-col gap-[18px]">
-        <ImgSlot
-          label={'visuel de couverture\n(photo caisse / capture)'}
-          height={170}
-          radius={16}
-          tone="#EFE6D6"
-          accent="#D6C9B2"
-        />
+        {formation.coverImageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={formation.coverImageUrl}
+            alt=""
+            className="h-[170px] w-full rounded-[16px] border border-line object-cover"
+          />
+        ) : (
+          <ImgSlot
+            label={'visuel de couverture\n(photo caisse / capture)'}
+            height={170}
+            radius={16}
+            tone="#EFE6D6"
+            accent="#D6C9B2"
+          />
+        )}
 
         {/* Progression card */}
         <div className="rounded-[16px] border border-line bg-surface px-5 py-[18px]">

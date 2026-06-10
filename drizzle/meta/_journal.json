@@ -43,6 +43,13 @@
       "when": 1781088033761,
       "tag": "0005_user_document_views",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781090574828,
+      "tag": "0006_formation_cover",
+      "breakpoints": true
     }
   ]
 }

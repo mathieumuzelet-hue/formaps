@@ -38,6 +38,7 @@ export const formations = pgTable('formations', {
   description: text('description').notNull(),
   kind: kindEnum('kind').notNull().default('sharepoint'),
   sharepointUrl: text('sharepoint_url'),
+  coverImageUrl: text('cover_image_url'), // /api/formations/<id>/cover once uploaded
   docCount: integer('doc_count').notNull().default(0),
   order: integer('order').notNull().default(0),
 })

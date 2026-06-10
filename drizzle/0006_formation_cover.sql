@@ -1,0 +1,1 @@
+ALTER TABLE "formations" ADD COLUMN "cover_image_url" text;
