@@ -64,6 +64,14 @@ test('parseSSELines extrait les payloads data:', () => {
   expect(parseSSELines(chunk)).toEqual(['{"event":"message","answer":"a"}', '{"event":"message","answer":"b"}'])
 })
 
+test('parseSSELines accepte data: sans espace (spec SSE)', () => {
+  expect(parseSSELines('data:{"event":"message"}')).toEqual(['{"event":"message"}'])
+})
+
+test('parseSSELines retire un seul espace optionnel', () => {
+  expect(parseSSELines('data:  spaced')).toEqual([' spaced'])
+})
+
 test('message_end expose messageId et les scores des sources', () => {
   const parsed = parseDifyEvent(
     JSON.stringify({
