@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 
 import { auth } from '@/server/auth'
 import { db } from '@/server/db'
@@ -178,14 +178,30 @@ export async function POST(request: Request): Promise<Response> {
       if (parsed.scores) endScores = parsed.scores
       if (parsed.conversationId) {
         streamConversationId = parsed.conversationId
-        if (!hadConversationId && !capturedConversationId && !errorSeen) {
-          capturedConversationId = true
-          const newId = parsed.conversationId
-          // Fire-and-forget: don't await, don't break the stream on error.
-          void Promise.resolve(
-            db.update(users).set({ difyConversationId: newId }).where(eq(users.id, userId)),
-          ).catch(() => {})
-        }
+      }
+      // Persist ONLY at message_end (success): persisting on the first delta
+      // raced the in-stream error purge (the two fire-and-forget UPDATEs are
+      // unordered) and could store a poisoned conversation id.
+      // (parsed.messageId is only ever set by message_end — see parse.ts.)
+      if (
+        parsed.messageId &&
+        !hadConversationId &&
+        !capturedConversationId &&
+        !errorSeen &&
+        streamConversationId
+      ) {
+        capturedConversationId = true
+        const newId = streamConversationId
+        // Fire-and-forget: don't await, don't break the stream on error.
+        void Promise.resolve(
+          db
+            .update(users)
+            .set({ difyConversationId: newId })
+            // Write-once: two parallel sends both starting without a stored
+            // conversation would otherwise overwrite each other (last write
+            // wins, orphaning one Dify conversation). First message_end wins.
+            .where(and(eq(users.id, userId), isNull(users.difyConversationId))),
+        ).catch(() => {})
       }
     }
   }

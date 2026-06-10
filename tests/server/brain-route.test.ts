@@ -1,4 +1,5 @@
 import { beforeEach, expect, test, vi } from 'vitest'
+import { and, eq, isNull } from 'drizzle-orm'
 
 // --- Mocks ---------------------------------------------------------------
 const auth = vi.fn()
@@ -28,6 +29,7 @@ vi.mock('@/server/db/schema', () => ({
 }))
 
 import { POST } from '@/app/api/brain/route'
+import { users } from '@/server/db/schema'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -59,7 +61,7 @@ test('authentifié + streamChat ok → 200, SSE relayé octet pour octet', async
   const sse =
     'data: {"event":"message","answer":"Bon","conversation_id":"cv-99"}\n\n' +
     'data: {"event":"message","answer":"jour"}\n\n' +
-    'data: {"event":"message_end","conversation_id":"cv-99"}\n\n'
+    'data: {"event":"message_end","id":"msg-99","conversation_id":"cv-99"}\n\n'
 
   const upstreamBody = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -77,9 +79,35 @@ test('authentifié + streamChat ok → 200, SSE relayé octet pour octet', async
   const relayed = await res.text()
   expect(relayed).toBe(sse)
 
-  // conversation id was absent → an update should have been attempted.
+  // conversation id was absent → an update should have been attempted at
+  // message_end (NOT at the first delta), with a write-once where clause.
   expect(dbUpdate).toHaveBeenCalled()
   expect(updateSet).toHaveBeenCalledWith({ difyConversationId: 'cv-99' })
+  expect(updateWhere).toHaveBeenCalledWith(
+    and(eq(users.id, 'u1'), isNull(users.difyConversationId)),
+  )
+})
+
+test('persistance UNIQUEMENT au message_end : un event error après les deltas → pas de persist', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // Pas de conversation stockée : Dify en crée une, le modèle streame, PUIS échoue.
+  selectLimit.mockResolvedValue([{ difyConversationId: null }])
+  const sse =
+    'data: {"event":"message","answer":"début","conversation_id":"cv-poison"}\n\n' +
+    'data: {"event":"error","message":"provider down"}\n\n' +
+    'data: {"event":"message_end","id":"msg-1","conversation_id":"cv-poison"}\n\n'
+  streamChat.mockResolvedValue(new Response(streamFrom(sse), { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'salut' }))
+  expect(res.status).toBe(200)
+  await res.text()
+  await new Promise((r) => setTimeout(r, 0))
+
+  // L'id de la conversation empoisonnée n'est JAMAIS persisté : seule la
+  // purge à null a lieu (les deux UPDATEs fire-and-forget ne sont pas
+  // ordonnés ; persister au premier delta pouvait stocker un id poison).
+  expect(updateSet).not.toHaveBeenCalledWith({ difyConversationId: 'cv-poison' })
+  expect(updateSet).toHaveBeenCalledWith({ difyConversationId: null })
 })
 
 test('query manquante → 400', async () => {
