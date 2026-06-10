@@ -95,6 +95,15 @@ test('generateMorePairs : retry encore en doublon → erreur explicite', async (
   await expect(generateMorePairs(client, 'doc', ['Quand bascule-t-on ?'])).rejects.toThrow(
     /no new FAQ pair/,
   )
+  expect(client.calls).toHaveLength(2)
+})
+
+test('source > 400k caractères → tronquée avec note dans le prompt', async () => {
+  const client = fakeClient({ pairs: [{ question: 'Q ?', answer: 'R.' }] })
+  await generateFaqPairs(client, 'x'.repeat(400_001))
+  const params = client.calls[0] as { messages: [{ content: string }] }
+  expect(params.messages[0].content).toContain('document tronqué aux 400000 premiers caractères')
+  expect(params.messages[0].content.length).toBeLessThan(403_000)
 })
 
 test('le prompt de generateMorePairs liste les questions existantes', async () => {
