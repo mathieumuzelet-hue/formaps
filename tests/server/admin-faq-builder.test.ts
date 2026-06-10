@@ -4,8 +4,14 @@ vi.mock('@/server/auth', () => ({ auth: vi.fn() }))
 vi.mock('@/server/db', () => ({ db: {} }))
 
 const { generateMorePairs } = vi.hoisted(() => ({ generateMorePairs: vi.fn() }))
-vi.mock('@/server/faq/claude', () => ({ generateMorePairs }))
-vi.mock('@/server/claude-core', () => ({ createAnthropicClient: vi.fn(() => ({})) }))
+vi.mock('@/server/faq/claude', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  generateMorePairs,
+}))
+vi.mock('@/server/claude-core', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  createAnthropicClient: vi.fn(() => ({})),
+}))
 
 const selectWhere = vi.fn()
 const selectOrderBy = vi.fn()
@@ -21,6 +27,8 @@ const dbMock = {
   delete: vi.fn(() => ({ where: deleteWhere })),
 } as never
 
+import { ClaudeOutputTruncatedError } from '@/server/claude-core'
+import { NoNewPairsError } from '@/server/faq/claude'
 import { adminRouter } from '@/server/trpc/routers/admin'
 import { createCallerFactory } from '@/server/trpc/trpc'
 
@@ -48,9 +56,10 @@ beforeEach(() => {
   process.env.ANTHROPIC_API_KEY = 'test-key'
 })
 
-test('list mappe vers itemCount sans exposer sourceText', async () => {
+test('list renvoie itemCount (compté en SQL) sans exposer sourceText', async () => {
+  // Le mock ne peut pas exécuter le jsonb_array_length — on épingle le pass-through.
   selectOrderBy.mockResolvedValue([
-    { id: DRAFT_ID, sourceFilename: 'a.pdf', items: [ITEM, ITEM], updatedAt: new Date(0) },
+    { id: DRAFT_ID, sourceFilename: 'a.pdf', itemCount: 2, updatedAt: new Date(0) },
   ])
   const rows = await caller().faqBuilder.list()
   expect(rows).toEqual([
@@ -101,17 +110,42 @@ test('generateMore ajoute en fin de liste avec origin generated', async () => {
   )
 })
 
-test('generateMore sans clé API → PRECONDITION_FAILED ; échec Claude → BAD_GATEWAY', async () => {
+test('generateMore sans clé API → SERVICE_UNAVAILABLE ; échec Claude → BAD_GATEWAY', async () => {
   delete process.env.ANTHROPIC_API_KEY
   await expect(caller().faqBuilder.generateMore({ draftId: DRAFT_ID })).rejects.toMatchObject(
-    { code: 'PRECONDITION_FAILED' },
+    { code: 'SERVICE_UNAVAILABLE' },
   )
   process.env.ANTHROPIC_API_KEY = 'test-key'
   selectWhere.mockResolvedValue([{ id: DRAFT_ID, sourceText: 'doc', items: [] }])
   generateMorePairs.mockRejectedValue(new Error('boom'))
   await expect(caller().faqBuilder.generateMore({ draftId: DRAFT_ID })).rejects.toMatchObject(
-    { code: 'BAD_GATEWAY' },
+    { code: 'BAD_GATEWAY', message: 'generation_failed' },
   )
+})
+
+test('generateMore : tout doublon (NoNewPairsError) → CONFLICT no_new_pairs', async () => {
+  selectWhere.mockResolvedValue([{ id: DRAFT_ID, sourceText: 'doc', items: [ITEM] }])
+  generateMorePairs.mockRejectedValue(new NoNewPairsError())
+  await expect(caller().faqBuilder.generateMore({ draftId: DRAFT_ID })).rejects.toMatchObject({
+    code: 'CONFLICT',
+    message: 'no_new_pairs',
+  })
+})
+
+test('generateMore : sortie tronquée → BAD_GATEWAY output_truncated', async () => {
+  selectWhere.mockResolvedValue([{ id: DRAFT_ID, sourceText: 'doc', items: [ITEM] }])
+  generateMorePairs.mockRejectedValue(new ClaudeOutputTruncatedError())
+  await expect(caller().faqBuilder.generateMore({ draftId: DRAFT_ID })).rejects.toMatchObject({
+    code: 'BAD_GATEWAY',
+    message: 'output_truncated',
+  })
+})
+
+test('generateMore : draft inconnu → NOT_FOUND', async () => {
+  selectWhere.mockResolvedValue([])
+  await expect(caller().faqBuilder.generateMore({ draftId: DRAFT_ID })).rejects.toMatchObject({
+    code: 'NOT_FOUND',
+  })
 })
 
 test('delete inconnu → NOT_FOUND', async () => {

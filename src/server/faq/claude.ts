@@ -9,6 +9,14 @@ import { forcedToolCall, type AnthropicLike, type Usage } from '@/server/claude-
 
 export const FAQ_MODEL = 'claude-sonnet-4-6'
 
+/** All proposals were duplicates after the retry — the FAQ likely already covers the document. */
+export class NoNewPairsError extends Error {
+  constructor() {
+    super('Claude returned no new FAQ pair after retry')
+    this.name = 'NoNewPairsError'
+  }
+}
+
 /** Cap on the document text sent to Claude (~110k tokens of French). */
 const SOURCE_CHAR_CAP = 400_000
 
@@ -162,6 +170,6 @@ export async function generateMorePairs(
     inputTokens: first.usage.inputTokens + second.usage.inputTokens,
     outputTokens: first.usage.outputTokens + second.usage.outputTokens,
   }
-  if (second.fresh.length < 1) throw new Error('Claude returned no new FAQ pair after retry')
+  if (second.fresh.length < 1) throw new NoNewPairsError()
   return { data: second.fresh, usage }
 }

@@ -1,7 +1,13 @@
 import { expect, test } from 'vitest'
 
 import type { AnthropicLike } from '@/server/claude-core'
-import { FAQ_MODEL, generateFaqPairs, generateMorePairs, questionKey } from '@/server/faq/claude'
+import {
+  FAQ_MODEL,
+  NoNewPairsError,
+  generateFaqPairs,
+  generateMorePairs,
+  questionKey,
+} from '@/server/faq/claude'
 
 /** Fake Anthropic client returning the given tool_use inputs, call after call. */
 function fakeClient(...inputs: unknown[]): AnthropicLike & { calls: unknown[] } {
@@ -92,9 +98,9 @@ test('generateMorePairs : retry encore en doublon → erreur explicite', async (
     { pairs: [{ question: 'Quand bascule-t-on ?', answer: 'Doublon.' }] },
     { pairs: [{ question: 'quand bascule t on', answer: 'Encore doublon.' }] },
   )
-  await expect(generateMorePairs(client, 'doc', ['Quand bascule-t-on ?'])).rejects.toThrow(
-    /no new FAQ pair/,
-  )
+  const promise = generateMorePairs(client, 'doc', ['Quand bascule-t-on ?'])
+  await expect(promise).rejects.toBeInstanceOf(NoNewPairsError)
+  await expect(promise).rejects.toThrow(/no new FAQ pair/)
   expect(client.calls).toHaveLength(2)
 })
 

@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto'
 
 import { TRPCError } from '@trpc/server'
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { faqDrafts } from '@/server/db/schema'
 import { faqItemSchema, type FaqItem } from '@/lib/faq/types'
-import { createAnthropicClient } from '@/server/claude-core'
-import { generateMorePairs } from '@/server/faq/claude'
+import { ClaudeOutputTruncatedError, createAnthropicClient } from '@/server/claude-core'
+import { NoNewPairsError, generateMorePairs } from '@/server/faq/claude'
 import { adminProcedure, router } from '../trpc'
 
 /**
@@ -16,21 +16,15 @@ import { adminProcedure, router } from '../trpc'
  */
 export const faqBuilderRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
-    const rows = await ctx.db
+    return ctx.db
       .select({
         id: faqDrafts.id,
         sourceFilename: faqDrafts.sourceFilename,
-        items: faqDrafts.items,
+        itemCount: sql<number>`jsonb_array_length(${faqDrafts.items})`,
         updatedAt: faqDrafts.updatedAt,
       })
       .from(faqDrafts)
       .orderBy(desc(faqDrafts.updatedAt))
-    return rows.map((r) => ({
-      id: r.id,
-      sourceFilename: r.sourceFilename,
-      itemCount: r.items.length,
-      updatedAt: r.updatedAt,
-    }))
   }),
 
   get: adminProcedure.input(z.object({ id: z.uuid() })).query(async ({ ctx, input }) => {
@@ -64,8 +58,11 @@ export const faqBuilderRouter = router({
     .input(z.object({ draftId: z.uuid() }))
     .mutation(async ({ ctx, input }) => {
       if (!process.env.ANTHROPIC_API_KEY) {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'anthropic_not_configured' })
+        throw new TRPCError({ code: 'SERVICE_UNAVAILABLE', message: 'anthropic_not_configured' })
       }
+      // Read-modify-write: a concurrent updateItems during the Claude call
+      // would be overwritten. Accepted for this mono-admin tool; the editor
+      // also freezes saves while a generation is pending.
       const [draft] = await ctx.db
         .select({
           id: faqDrafts.id,
@@ -86,6 +83,12 @@ export const faqBuilderRouter = router({
           )
         ).data
       } catch (err) {
+        if (err instanceof NoNewPairsError) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'no_new_pairs' })
+        }
+        if (err instanceof ClaudeOutputTruncatedError) {
+          throw new TRPCError({ code: 'BAD_GATEWAY', message: 'output_truncated' })
+        }
         console.error('[faq-builder] generateMore failed:', err)
         throw new TRPCError({ code: 'BAD_GATEWAY', message: 'generation_failed' })
       }
@@ -96,14 +99,18 @@ export const faqBuilderRouter = router({
         answer: p.answer,
         origin: 'generated',
       }))
-      const items = [...draft.items, ...added]
+      // Cap so the total never exceeds updateItems' zod cap (500) — exceeding
+      // it would make the draft unsaveable in the editor.
+      const room = Math.max(0, 500 - draft.items.length)
+      const appended = added.slice(0, room)
+      const items = [...draft.items, ...appended]
       const [row] = await ctx.db
         .update(faqDrafts)
         .set({ items, updatedAt: new Date() })
         .where(eq(faqDrafts.id, input.draftId))
         .returning({ id: faqDrafts.id })
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
-      return { added: added.length, items }
+      return { added: appended.length, items }
     }),
 
   delete: adminProcedure.input(z.object({ id: z.uuid() })).mutation(async ({ ctx, input }) => {
