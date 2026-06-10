@@ -18,7 +18,8 @@ const selectLimit = vi.fn().mockResolvedValue([{ difyConversationId: null }])
 const dbSelect = vi.fn(() => ({
   from: () => ({ where: () => ({ limit: selectLimit }) }),
 }))
-const insertValues = vi.fn().mockResolvedValue(undefined)
+const insertConflict = vi.fn().mockResolvedValue(undefined)
+const insertValues = vi.fn(() => ({ onConflictDoNothing: insertConflict }))
 const dbInsert = vi.fn(() => ({ values: insertValues }))
 vi.mock('@/server/db', () => ({
   db: { select: () => dbSelect(), update: () => dbUpdate(), insert: () => dbInsert() },
@@ -409,6 +410,9 @@ test('log : insert chat_queries avec les agrégats après message_end', async ()
     retrievalCount: 2,
     hasRelevantSource: true,
   })
+  // Les message_end rejoués (frames dupliquées) sont du bruit attendu :
+  // avalés au niveau SQL, pas remontés en erreur.
+  expect(insertConflict).toHaveBeenCalled()
 })
 
 test('log : seuil FAQ_RELEVANCE_THRESHOLD personnalisé respecté', async () => {
@@ -476,9 +480,70 @@ test('self-heal : event error sur NOUVELLE conversation → l’id capturé n’
   expect(updateSet).not.toHaveBeenCalledWith({ difyConversationId: 'cv-naissante' })
 })
 
+test('log : un stream en erreur n’est JAMAIS loggé comme FAQ-gap, même avec message_end complet', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // L'erreur in-stream précède un message_end complet (id + conversation +
+  // metadata) : la réponse est cassée, la logger polluerait l'écran FAQ-gaps.
+  const sse =
+    'data: {"event":"message","answer":"début","conversation_id":"cv-1"}\n\n' +
+    'data: {"event":"error","message":"provider down"}\n\n' +
+    'data: {"event":"message_end","id":"msg-1","conversation_id":"cv-1","metadata":{"retriever_resources":[{"score":0.9}]}}\n\n'
+  streamChat.mockResolvedValue(new Response(streamFrom(sse), { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'q' }))
+  await res.text()
+  await new Promise((r) => setTimeout(r, 0))
+
+  expect(insertValues).not.toHaveBeenCalled()
+})
+
+test('log : message_end SANS metadata → insert avec 0 scores (le signal FAQ-gap par excellence)', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // Dify a répondu sans la moindre source : c'est exactement ce que l'écran
+  // FAQ-gaps existe pour remonter — pas une raison de ne pas logger.
+  const sse =
+    'data: {"event":"message","answer":"Aucune idée"}\n\n' +
+    'data: {"event":"message_end","id":"msg-1","conversation_id":"cv-1"}\n\n'
+  streamChat.mockResolvedValue(new Response(streamFrom(sse), { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'q' }))
+  await res.text()
+  await new Promise((r) => setTimeout(r, 0))
+
+  expect(insertValues).toHaveBeenCalledWith(
+    expect.objectContaining({
+      retrievalScoreMax: null,
+      retrievalCount: 0,
+      hasRelevantSource: false,
+    }),
+  )
+})
+
+test('query > 2000 caractères → 400 query_too_long, Dify JAMAIS appelé', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+
+  const res = await POST(makeRequest({ query: 'a'.repeat(2001) }))
+
+  expect(res.status).toBe(400)
+  expect(await res.json()).toEqual({ error: 'query_too_long' })
+  expect(streamChat).not.toHaveBeenCalled()
+})
+
+test('query de 2000 caractères exactement → acceptée (borne inclusive)', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  streamChat.mockResolvedValue(
+    new Response(streamFrom('data: {"event":"message","answer":"ok"}\n\n'), { status: 200 }),
+  )
+
+  const res = await POST(makeRequest({ query: 'a'.repeat(2000) }))
+
+  expect(res.status).toBe(200)
+  expect(streamChat).toHaveBeenCalledTimes(1)
+})
+
 test('log : un échec d’insert n’affecte ni le statut ni les octets relayés', async () => {
   auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
-  insertValues.mockRejectedValueOnce(new Error('db down'))
+  insertConflict.mockRejectedValueOnce(new Error('db down'))
   const sse =
     'data: {"event":"message","answer":"ok","conversation_id":"cv-1"}\n\n' +
     'data: {"event":"message_end","id":"msg-1","conversation_id":"cv-1","metadata":{}}\n\n'

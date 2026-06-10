@@ -12,6 +12,8 @@ export const runtime = 'nodejs'
 
 const CONNECT_TIMEOUT_MS = 30_000
 
+const MAX_QUERY_LENGTH = 2000
+
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -31,6 +33,9 @@ export async function POST(request: Request): Promise<Response> {
     const body = (await request.json()) as { query?: unknown }
     if (typeof body.query !== 'string' || body.query.trim() === '') {
       return json({ error: 'query is required' }, 400)
+    }
+    if (body.query.length > MAX_QUERY_LENGTH) {
+      return json({ error: 'query_too_long' }, 400)
     }
     query = body.query
   } catch {
@@ -228,20 +233,25 @@ export async function POST(request: Request): Promise<Response> {
         buffer += decoder.decode()
         if (buffer.trim().length > 0) inspectFrames(buffer)
 
-        // Only log complete answers: a stream without message_end (network
-        // cut, model error) is noise for FAQ analysis.
-        if (!endMessageId || endScores === null || !streamConversationId) return
+        // Never log errored conversations as FAQ gaps, and only log streams
+        // that reached message_end (network cuts are noise). A message_end
+        // WITHOUT retrieval metadata is logged with zero scores — "no source
+        // at all" is exactly the FAQ-gap signal the admin screen exists for.
+        if (errorSeen || !endMessageId || !streamConversationId) return
         const values = buildChatQueryValues({
           query,
           answer,
           conversationId: streamConversationId,
           messageId: endMessageId,
           userId,
-          scores: endScores,
+          scores: endScores ?? [],
           threshold: relevanceThreshold(process.env.FAQ_RELEVANCE_THRESHOLD),
         })
-        // Fire-and-forget: logging must never delay or fail the response.
-        void Promise.resolve(db.insert(chatQueries).values(values)).catch((err) => {
+        // Fire-and-forget; duplicate message ids (replayed end frames) are
+        // expected noise, not errors — swallow them at the SQL level.
+        void Promise.resolve(
+          db.insert(chatQueries).values(values).onConflictDoNothing(),
+        ).catch((err) => {
           console.error('[brain] log chat_queries a échoué:', err)
         })
       } catch (err) {
