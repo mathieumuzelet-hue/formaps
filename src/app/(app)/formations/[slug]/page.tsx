@@ -109,12 +109,22 @@ export default async function FormationDetailPage({
                     PDF · {d.pages} pages · {d.sizeLabel}
                   </div>
                 </div>
-                <a
-                  href={d.fileUrl}
-                  className="inline-flex items-center gap-2 text-[13.5px] font-bold text-redink"
-                >
-                  <Icon name="download" size={17} color="#A20D24" /> Télécharger
-                </a>
+                <div className="flex flex-shrink-0 items-center gap-[18px]">
+                  <a
+                    href={d.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-[13.5px] font-bold text-redink"
+                  >
+                    <Icon name="eye" size={17} color="#A20D24" /> Consulter
+                  </a>
+                  <a
+                    href={`${d.fileUrl}?download=1`}
+                    className="inline-flex items-center gap-2 text-[13.5px] font-bold text-sub"
+                  >
+                    <Icon name="download" size={17} color="#8A7F6E" /> Télécharger
+                  </a>
+                </div>
               </div>
             ))}
           </div>
