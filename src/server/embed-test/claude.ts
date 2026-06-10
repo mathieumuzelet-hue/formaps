@@ -24,50 +24,15 @@ export const EMBED_TEST_MODELS: Record<EmbedTestModelKey, string> = {
   opus: 'claude-opus-4-8',
 }
 
-/** Structural subset of the Anthropic client used here (test seam). */
-export type AnthropicLike = {
-  messages: { create: (params: Anthropic.MessageCreateParams) => Promise<unknown> }
-}
+import {
+  forcedToolCall,
+  createAnthropicClient,
+  type AnthropicLike,
+  type Usage,
+} from '@/server/claude-core'
 
-export function createAnthropicClient(): AnthropicLike {
-  // SDK auto-retries 429/5xx with backoff (default maxRetries: 2).
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-}
-
-export type Usage = { inputTokens: number; outputTokens: number }
-
-const responseSchema = z.object({
-  content: z.array(z.object({ type: z.string() }).loose()),
-  usage: z.object({ input_tokens: z.number(), output_tokens: z.number() }),
-})
-
-async function forcedToolCall(
-  client: AnthropicLike,
-  model: string,
-  prompt: string | Anthropic.ContentBlockParam[],
-  toolName: string,
-  description: string,
-  inputSchema: Anthropic.Tool.InputSchema,
-): Promise<{ input: unknown; usage: Usage }> {
-  const raw = await client.messages.create({
-    model,
-    max_tokens: 16000,
-    messages: [{ role: 'user', content: prompt }],
-    tools: [
-      { name: toolName, description, strict: true, input_schema: inputSchema },
-    ],
-    tool_choice: { type: 'tool', name: toolName },
-  })
-  const res = responseSchema.parse(raw)
-  const block = res.content.find((b) => b.type === 'tool_use') as
-    | { type: 'tool_use'; input: unknown }
-    | undefined
-  if (!block) throw new Error('Claude response carried no tool_use block')
-  return {
-    input: block.input,
-    usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
-  }
-}
+export { createAnthropicClient }
+export type { AnthropicLike, Usage }
 
 // ---------------------------------------------------------------- ocrCompare
 
