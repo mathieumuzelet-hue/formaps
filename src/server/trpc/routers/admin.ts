@@ -33,6 +33,7 @@ import {
   userCreateSchema,
   userUpdateSchema,
 } from '@/lib/admin/schemas'
+import { faqBuilderRouter } from './admin-faq-builder'
 import { faqGapsRouter } from './admin-faq-gaps'
 import { adminProcedure, router } from '../trpc'
 
@@ -479,4 +480,5 @@ export const adminRouter = router({
   news: newsRouter,
   brainSuggestions: brainSuggestionsRouter,
   faqGaps: faqGapsRouter,
+  faqBuilder: faqBuilderRouter,
 })
