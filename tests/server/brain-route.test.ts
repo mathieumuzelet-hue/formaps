@@ -225,6 +225,35 @@ test('abort client AVANT les headers → propagé au fetch Dify → 502', async 
   expect(res.status).toBe(502)
 })
 
+test('signal client DÉJÀ aborté avant POST → streamChat reçoit un signal aborté → 502 immédiat', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // Le client est parti AVANT même l'appel : addEventListener('abort') ne
+  // refire pas sur un signal déjà aborté (spec AbortSignal), le controller
+  // doit donc être aborté explicitement à la création.
+  const clientAbort = new AbortController()
+  clientAbort.abort()
+
+  streamChat.mockImplementation((args: { signal?: AbortSignal }) => {
+    // Comportement undici : fetch avec un signal déjà aborté rejette direct.
+    if (args.signal?.aborted) return Promise.reject(new Error('This operation was aborted'))
+    return Promise.resolve(
+      new Response(streamFrom('data: {"event":"message","answer":"ok"}\n\n'), { status: 200 }),
+    )
+  })
+
+  const request = new Request('http://localhost/api/brain', {
+    method: 'POST',
+    body: JSON.stringify({ query: 'hello' }),
+    headers: { 'Content-Type': 'application/json' },
+    signal: clientAbort.signal,
+  })
+
+  const res = await POST(request)
+  expect(res.status).toBe(502)
+  const args = streamChat.mock.calls[0][0] as { signal: AbortSignal }
+  expect(args.signal.aborted).toBe(true)
+})
+
 test('Dify muet pendant la phase headers → timeout de connexion 30 s → 502', async () => {
   vi.useFakeTimers()
   try {

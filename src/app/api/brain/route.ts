@@ -57,6 +57,8 @@ export async function POST(request: Request): Promise<Response> {
   // propagated by the pipeThrough cancellation, not by this signal).
   const callDify = async (convId: string | null): Promise<Response> => {
     const controller = new AbortController()
+    // A signal aborted before addEventListener never fires the event.
+    if (request.signal.aborted) controller.abort()
     const onAbort = () => controller.abort()
     request.signal.addEventListener('abort', onAbort)
     const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS)
