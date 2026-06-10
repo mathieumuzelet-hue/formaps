@@ -12,6 +12,7 @@ const NAV_ITEMS: ReadonlyArray<readonly [href: string, label: string, icon: stri
   ['/admin/utilisateurs', 'Utilisateurs', 'user'],
   ['/admin/suggestions', 'Suggestions BRAIN', 'brain'],
   ['/admin/faq-gaps', 'Trous FAQ', 'search'],
+  ['/admin/faq-builder', 'FAQ Builder', 'chat'],
   ['/admin/embed-test', "Labo d'embed", 'settings'],
 ]
 
