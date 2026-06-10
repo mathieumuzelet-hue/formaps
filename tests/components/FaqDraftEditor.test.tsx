@@ -1,18 +1,25 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test, vi } from 'vitest'
 
 const getQuery = vi.hoisted(() => vi.fn())
 const updateMutate = vi.hoisted(() => vi.fn())
 const generateMoreMutate = vi.hoisted(() => vi.fn())
+const updatePending = vi.hoisted(() => ({ value: false }))
+const generateMorePending = vi.hoisted(() => ({ value: false }))
 vi.mock('@/lib/trpc/client', () => ({
   trpc: {
     admin: {
       faqBuilder: {
         get: { useQuery: getQuery },
-        updateItems: { useMutation: () => ({ mutate: updateMutate, isPending: false }) },
+        updateItems: {
+          useMutation: () => ({ mutate: updateMutate, isPending: updatePending.value }),
+        },
         generateMore: {
-          useMutation: () => ({ mutate: generateMoreMutate, isPending: false }),
+          useMutation: () => ({
+            mutate: generateMoreMutate,
+            isPending: generateMorePending.value,
+          }),
         },
       },
     },
@@ -37,6 +44,8 @@ const DRAFT = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  updatePending.value = false
+  generateMorePending.value = false
   getQuery.mockReturnValue({ data: DRAFT, isLoading: false, isError: false })
 })
 
@@ -106,4 +115,43 @@ test('Générer plus (état propre) appelle la mutation', async () => {
   render(<FaqDraftEditor draftId="d1" />)
   await userEvent.click(screen.getByRole('button', { name: /générer plus/i }))
   expect(generateMoreMutate).toHaveBeenCalledWith({ draftId: 'd1' }, expect.anything())
+})
+
+test('pendant Générer plus (pending) : textareas et actions par paire gelées', () => {
+  generateMorePending.value = true
+  render(<FaqDraftEditor draftId="d1" />)
+  expect(screen.getByDisplayValue('Q1 ?')).toBeDisabled()
+  expect(screen.getByDisplayValue('R1.')).toBeDisabled()
+  expect(screen.getAllByRole('button', { name: /supprimer la paire/i })[0]).toBeDisabled()
+  expect(screen.getByRole('button', { name: /descendre la paire 1/i })).toBeDisabled()
+  expect(screen.getByRole('button', { name: /ajouter une paire/i })).toBeDisabled()
+})
+
+test('erreur generateMore no_new_pairs → bannière status (pas alert) avec message FAQ couverte', async () => {
+  render(<FaqDraftEditor draftId="d1" />)
+  await userEvent.click(screen.getByRole('button', { name: /générer plus/i }))
+  const options = generateMoreMutate.mock.calls[0][1] as {
+    onError: (e: { message: string }) => void
+  }
+  act(() => options.onError({ message: 'no_new_pairs' }))
+  expect(await screen.findByRole('status')).toHaveTextContent(/couvre probablement déjà/i)
+})
+
+test('succès generateMore remplace les items et annonce le nombre ajouté', async () => {
+  render(<FaqDraftEditor draftId="d1" />)
+  await userEvent.click(screen.getByRole('button', { name: /générer plus/i }))
+  const options = generateMoreMutate.mock.calls[0][1] as {
+    onSuccess: (r: { added: number; items: unknown[] }) => void
+  }
+  act(() =>
+    options.onSuccess({
+      added: 1,
+      items: [
+        ...DRAFT.items,
+        { id: 'i3', question: 'Q3 ?', answer: 'R3.', origin: 'generated' },
+      ],
+    }),
+  )
+  expect(await screen.findByDisplayValue('Q3 ?')).toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent(/1 paire ajoutée/)
 })

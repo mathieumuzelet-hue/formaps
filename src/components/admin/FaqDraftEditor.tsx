@@ -48,16 +48,16 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [dirty])
 
-  if (draft.isLoading || (items === null && !draft.isError)) {
-    return <p className="mt-6 text-[14px] text-sub">Chargement…</p>
-  }
-  if (draft.isError) {
+  if (draft.isError && items === null) {
     return <p className="mt-6 text-[14px] text-red">{draft.error.message}</p>
+  }
+  if (draft.isLoading || items === null) {
+    return <p className="mt-6 text-[14px] text-sub">Chargement…</p>
   }
 
   const list = items ?? []
   const hasEmpty = list.some((it) => !it.question.trim() || !it.answer.trim())
-  const busy = generateMore.isPending
+  const busy = generateMore.isPending || update.isPending
 
   const edit = (id: string, patch: Partial<Pick<FaqItem, 'question' | 'answer'>>) => {
     setItems((prev) => (prev ?? []).map((it) => (it.id === id ? { ...it, ...patch } : it)))
@@ -118,7 +118,7 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
         },
         onError: (err) =>
           setBanner({
-            kind: 'alert',
+            kind: err.message === 'no_new_pairs' ? 'status' : 'alert',
             text: GENERATE_MORE_ERRORS[err.message] ?? 'La génération a échoué. Réessayez.',
           }),
       },
@@ -157,7 +157,7 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
           <button
             type="button"
             onClick={save}
-            disabled={!dirty || hasEmpty || update.isPending || busy}
+            disabled={!dirty || hasEmpty || busy}
             className="rounded-lg bg-red px-3 py-1.5 text-[13px] font-semibold text-white disabled:opacity-50"
           >
             {update.isPending ? 'Enregistrement…' : 'Enregistrer'}
@@ -205,7 +205,7 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
                 <button
                   type="button"
                   onClick={() => move(index, -1)}
-                  disabled={index === 0}
+                  disabled={busy || index === 0}
                   aria-label={`Monter la paire ${index + 1}`}
                   className="rounded px-2 py-1 text-[13px] text-sub disabled:opacity-30"
                 >
@@ -214,7 +214,7 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
                 <button
                   type="button"
                   onClick={() => move(index, 1)}
-                  disabled={index === list.length - 1}
+                  disabled={busy || index === list.length - 1}
                   aria-label={`Descendre la paire ${index + 1}`}
                   className="rounded px-2 py-1 text-[13px] text-sub disabled:opacity-30"
                 >
@@ -223,6 +223,7 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
                 <button
                   type="button"
                   onClick={() => remove(it.id)}
+                  disabled={busy}
                   aria-label={`Supprimer la paire ${index + 1}`}
                   className="rounded px-2 py-1 text-[13px] text-red"
                 >
@@ -235,6 +236,7 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
               <textarea
                 value={it.question}
                 onChange={(e) => edit(it.id, { question: e.target.value })}
+                disabled={busy}
                 rows={2}
                 className={`${FIELD} mt-1`}
               />
@@ -244,6 +246,7 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
               <textarea
                 value={it.answer}
                 onChange={(e) => edit(it.id, { answer: e.target.value })}
+                disabled={busy}
                 rows={4}
                 className={`${FIELD} mt-1`}
               />
