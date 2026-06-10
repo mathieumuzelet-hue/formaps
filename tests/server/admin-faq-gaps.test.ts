@@ -1,3 +1,4 @@
+import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
@@ -5,7 +6,7 @@ vi.mock('@/server/auth', () => ({ auth: vi.fn() }))
 vi.mock('@/server/db', () => ({ db: {} }))
 
 const selectOrderBy = vi.fn()
-const selectWhere = vi.fn(() => ({ orderBy: selectOrderBy }))
+const selectWhere = vi.fn((_where: unknown) => ({ orderBy: selectOrderBy }))
 const selectFrom = vi.fn(() => ({ where: selectWhere }))
 const dbSelect = vi.fn(() => ({ from: selectFrom }))
 const dbMock = { select: dbSelect } as never
@@ -71,7 +72,7 @@ test('seuil appliqué à la lecture : FAQ_RELEVANCE_THRESHOLD rétroactif, hasRe
 
   await caller().list()
 
-  const where = selectWhere.mock.calls[0]?.[0]
+  const where = selectWhere.mock.calls[0]?.[0] as SQL
   const { sql, params } = new PgDialect().sqlToQuery(where)
 
   expect(sql).toContain('"retrieval_score_max" is null')
