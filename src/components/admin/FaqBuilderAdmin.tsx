@@ -30,6 +30,7 @@ export function FaqBuilderAdmin() {
   const list = trpc.admin.faqBuilder.list.useQuery()
   const del = trpc.admin.faqBuilder.delete.useMutation({
     onSuccess: () => utils.admin.faqBuilder.list.invalidate(),
+    onError: () => setError('La suppression a échoué. Réessayez.'),
   })
 
   const [file, setFile] = useState<File | null>(null)
@@ -38,6 +39,10 @@ export function FaqBuilderAdmin() {
 
   const generate = async () => {
     if (!file) return
+    if (file.size > 25 * 1024 * 1024) {
+      setError('Fichier trop volumineux (25 Mo max).')
+      return
+    }
     setGenerating(true)
     setError(null)
     try {
@@ -70,7 +75,10 @@ export function FaqBuilderAdmin() {
             type="file"
             accept=".pdf,.docx"
             aria-label="Document source"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null)
+              setError(null)
+            }}
             className="text-[13px] text-ink"
           />
           <button
@@ -116,8 +124,13 @@ export function FaqBuilderAdmin() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => del.mutate({ id: d.id })}
-                  className="rounded-lg px-2 py-1.5 text-[13px] text-red"
+                  onClick={() => {
+                    if (window.confirm(`Supprimer « ${d.sourceFilename} » ?`)) {
+                      del.mutate({ id: d.id })
+                    }
+                  }}
+                  disabled={del.isPending}
+                  className="rounded-lg px-2 py-1.5 text-[13px] text-red disabled:opacity-50"
                   aria-label={`Supprimer ${d.sourceFilename}`}
                 >
                   Supprimer

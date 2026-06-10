@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 const push = vi.hoisted(() => vi.fn())
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
@@ -37,6 +37,10 @@ beforeEach(() => {
   })
 })
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 test('liste les brouillons avec nom, compteur et lien éditeur', () => {
   render(<FaqBuilderAdmin />)
   expect(screen.getByText('guide.pdf')).toBeInTheDocument()
@@ -63,7 +67,6 @@ test('upload réussi → redirige vers l’éditeur du brouillon créé', async 
     '/api/admin/faq-builder',
     expect.objectContaining({ method: 'POST' }),
   )
-  vi.unstubAllGlobals()
 })
 
 test('erreur serveur → bannière en français', async () => {
@@ -80,5 +83,27 @@ test('erreur serveur → bannière en français', async () => {
   await userEvent.upload(screen.getByLabelText(/document source/i), file)
   await userEvent.click(screen.getByRole('button', { name: /générer la faq/i }))
   expect(await screen.findByRole('alert')).toHaveTextContent(/scanné/i)
-  vi.unstubAllGlobals()
+})
+
+test('Supprimer demande confirmation : annulé → pas de mutation, confirmé → mutation', async () => {
+  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  render(<FaqBuilderAdmin />)
+  await userEvent.click(screen.getByRole('button', { name: /supprimer guide\.pdf/i }))
+  expect(deleteMutate).not.toHaveBeenCalled()
+  confirmSpy.mockReturnValue(true)
+  await userEvent.click(screen.getByRole('button', { name: /supprimer guide\.pdf/i }))
+  expect(deleteMutate).toHaveBeenCalledWith({ id: 'd1' })
+  confirmSpy.mockRestore()
+})
+
+test('fichier > 25 Mo → bannière sans appel réseau', async () => {
+  const fetchMock = vi.fn()
+  vi.stubGlobal('fetch', fetchMock)
+  render(<FaqBuilderAdmin />)
+  const big = new File(['%PDF-fake'], 'gros.pdf', { type: 'application/pdf' })
+  Object.defineProperty(big, 'size', { value: 25 * 1024 * 1024 + 1 })
+  await userEvent.upload(screen.getByLabelText(/document source/i), big)
+  await userEvent.click(screen.getByRole('button', { name: /générer la faq/i }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(/25 Mo/)
+  expect(fetchMock).not.toHaveBeenCalled()
 })
