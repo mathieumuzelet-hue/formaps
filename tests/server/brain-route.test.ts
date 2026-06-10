@@ -327,6 +327,49 @@ test('Dify muet pendant la phase headers → timeout de connexion 30 s → 502',
   }
 })
 
+test('le timer 30 s ne couvre QUE les headers : une génération longue n’est jamais coupée mid-stream', async () => {
+  vi.useFakeTimers()
+  try {
+    auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+    // Mock fidèle à undici : aborter le signal APRÈS les headers erre le body
+    // en cours de lecture. Si le timer de connexion n'était pas cleared à
+    // l'arrivée des headers, l'avance de 30 s ci-dessous couperait le stream.
+    let push!: (s: string) => void
+    let close!: () => void
+    streamChat.mockImplementation((args: { signal?: AbortSignal }) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          args.signal?.addEventListener(
+            'abort',
+            () => controller.error(new Error('This operation was aborted')),
+            { once: true },
+          )
+          push = (s) => controller.enqueue(new TextEncoder().encode(s))
+          close = () => controller.close()
+        },
+      })
+      return Promise.resolve(new Response(body, { status: 200 }))
+    })
+
+    const res = await POST(makeRequest({ query: 'hello' }))
+    expect(res.status).toBe(200)
+
+    // Headers arrivés, la génération démarre…
+    push('data: {"event":"message","answer":"longue","conversation_id":"cv-1"}\n\n')
+    // …et dépasse largement la fenêtre de connexion de 30 s.
+    await vi.advanceTimersByTimeAsync(30_000)
+    push('data: {"event":"message","answer":" génération"}\n\n')
+    close()
+
+    // Le body n'a été ni coupé ni mis en erreur : tout est relayé.
+    const relayed = await res.text()
+    expect(relayed).toContain('longue')
+    expect(relayed).toContain(' génération')
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
 test('streamChat throw → 502', async () => {
   auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
   streamChat.mockRejectedValue(new Error('network'))
