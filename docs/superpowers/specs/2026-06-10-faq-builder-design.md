@@ -80,8 +80,10 @@ Mutation tRPC admin `faqBuilder.generateMore({ draftId })` :
   compactés) contre l'existant — la consigne prompt seule ne suffit pas
   (cf. feedback « LLM propose + dédup + retry »).
 - Si tout est doublon : **un retry** avec bloc « PROPOSITIONS REJETÉES » listant les
-  questions rejetées ; si le retry API échoue, on garde les survivantes de la
-  tentative 1. 0 paire inédite après retry → erreur explicite, brouillon inchangé.
+  questions rejetées. (Le retry ne se déclenche qu'à 0 paire inédite — il n'y a donc
+  pas de « survivantes » de la tentative 1 à sauver, contrairement au refine
+  embed-lab dont le seuil était ≥2.) 0 paire inédite après retry → erreur explicite,
+  brouillon inchangé.
 - Les paires neuves s'ajoutent **en fin de liste**, `origin: 'generated'`.
 
 ## tRPC (routeur `faqBuilder`, admin)
