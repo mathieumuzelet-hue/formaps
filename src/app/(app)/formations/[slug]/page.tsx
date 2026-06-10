@@ -5,7 +5,7 @@ import { TRPCError } from '@trpc/server'
 import { getServerCaller } from '@/server/trpc/server'
 import { Icon } from '@/components/ui/Icon'
 import { ImgSlot } from '@/components/ui/ImgSlot'
-import { MarkDoneButton } from '@/components/formation/MarkDoneButton'
+import { RefreshOnFocus } from '@/components/formation/RefreshOnFocus'
 
 export default async function FormationDetailPage({
   params,
@@ -32,6 +32,8 @@ export default async function FormationDetailPage({
 
   return (
     <div className="grid grid-cols-1 gap-[34px] px-5 py-[26px] md:px-10 lg:grid-cols-[1.7fr_1fr]">
+      {/* Met à jour la barre de progression au retour de l'onglet PDF. */}
+      <RefreshOnFocus />
       {/* Left column */}
       <div>
         {/* Breadcrumb */}
@@ -165,7 +167,17 @@ export default async function FormationDetailPage({
               SharePoint
             </a>
           )}
-          <MarkDoneButton formationId={formation.id} percent={percent} />
+          {percent >= 100 ? (
+            <div className="mt-4 flex items-center gap-2 border-t border-line pt-[14px] text-[13px] font-bold text-ink">
+              <Icon name="check" size={16} color="#A20D24" />
+              Formation terminée
+            </div>
+          ) : (
+            <p className="mt-4 border-t border-line pt-[14px] text-[12.5px] leading-[1.5] text-sub">
+              La progression avance automatiquement quand vous consultez les
+              documents.
+            </p>
+          )}
         </div>
 
         {/* Related */}
