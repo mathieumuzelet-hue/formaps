@@ -129,3 +129,39 @@ export async function generateFaqPairs(
   if (fresh.length < 1) throw new Error('Claude returned no valid FAQ pair')
   return { data: fresh, usage }
 }
+
+export async function generateMorePairs(
+  client: AnthropicLike,
+  sourceText: string,
+  existingQuestions: string[],
+): Promise<{ data: FaqPair[]; usage: Usage }> {
+  const existingKeys = new Set(existingQuestions.map(questionKey))
+  const existingBlock =
+    '--- QUESTIONS DÉJÀ PRÉSENTES (ne JAMAIS reproposer une question identique ou ' +
+    'équivalente) ---\n' +
+    existingQuestions.map((q) => `- ${q}`).join('\n') +
+    '\n\nPropose uniquement des paires INÉDITES sur des sujets du document non ' +
+    'couverts ci-dessus.\n\n'
+
+  const first = await pairsAttempt(client, buildPrompt(sourceText, existingBlock), existingKeys)
+  if (first.fresh.length >= 1) return { data: first.fresh, usage: first.usage }
+
+  // Everything came back as a duplicate: one retry with explicit feedback.
+  // (No attempt-1 survivors to rescue here — the retry only fires at 0 fresh.)
+  const feedbackBlock =
+    '--- ATTENTION : PROPOSITIONS REJETÉES ---\n' +
+    `Tu viens de proposer ${first.duplicates.length} question(s) déjà présentes : ` +
+    first.duplicates.map((p) => `« ${p.question} »`).join(', ') +
+    ".\nPropose des questions portant sur D'AUTRES SUJETS du document.\n\n"
+  const second = await pairsAttempt(
+    client,
+    buildPrompt(sourceText, existingBlock + feedbackBlock),
+    existingKeys,
+  )
+  const usage: Usage = {
+    inputTokens: first.usage.inputTokens + second.usage.inputTokens,
+    outputTokens: first.usage.outputTokens + second.usage.outputTokens,
+  }
+  if (second.fresh.length < 1) throw new Error('Claude returned no new FAQ pair after retry')
+  return { data: second.fresh, usage }
+}
