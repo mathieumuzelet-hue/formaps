@@ -9,6 +9,8 @@ import { relevanceThreshold, buildChatQueryValues } from '@/server/brain/chat-lo
 
 export const runtime = 'nodejs'
 
+const CONNECT_TIMEOUT_MS = 30_000
+
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -48,8 +50,28 @@ export async function POST(request: Request): Promise<Response> {
     conversationId = null
   }
 
-  const callDify = (convId: string | null) =>
-    streamChat({ query, user: userId, conversationId: convId })
+  // One controller per attempt: aborts the upstream fetch if the client is
+  // already gone, or if Dify accepts the connection but never answers the
+  // headers. The timer is cleared as soon as headers arrive so long
+  // generations are never cut mid-stream (mid-stream client disconnects are
+  // propagated by the pipeThrough cancellation, not by this signal).
+  const callDify = async (convId: string | null): Promise<Response> => {
+    const controller = new AbortController()
+    const onAbort = () => controller.abort()
+    request.signal.addEventListener('abort', onAbort)
+    const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS)
+    try {
+      return await streamChat({
+        query,
+        user: userId,
+        conversationId: convId,
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+      request.signal.removeEventListener('abort', onAbort)
+    }
+  }
 
   let upstream: Response
   try {

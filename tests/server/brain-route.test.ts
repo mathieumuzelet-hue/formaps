@@ -180,6 +180,77 @@ test('auto-heal: 404 aussi au retry → 502, pas de boucle', async () => {
   expect(streamChat).toHaveBeenCalledTimes(2)
 })
 
+test('passe un AbortSignal à streamChat (timeout connexion + abort client)', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  const sse = 'data: {"event":"message","answer":"ok","conversation_id":"cv-1"}\n\n'
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(sse))
+      controller.close()
+    },
+  })
+  streamChat.mockResolvedValue(new Response(body, { status: 200 }))
+
+  const res = await POST(makeRequest({ query: 'hello' }))
+  expect(res.status).toBe(200)
+
+  const args = streamChat.mock.calls[0][0] as { signal?: unknown }
+  expect(args.signal).toBeInstanceOf(AbortSignal)
+})
+
+test('abort client AVANT les headers → propagé au fetch Dify → 502', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  const clientAbort = new AbortController()
+  streamChat.mockImplementation((args: { signal?: AbortSignal }) => {
+    // Le client se déconnecte pendant la phase headers.
+    clientAbort.abort()
+    // Avec le plumbing, le signal relayé est déjà aborté → fetch rejette
+    // (comportement undici). Sans plumbing, l'abort est invisible et Dify
+    // « répond » normalement.
+    if (args.signal?.aborted) return Promise.reject(new Error('This operation was aborted'))
+    return Promise.resolve(
+      new Response(streamFrom('data: {"event":"message","answer":"ok"}\n\n'), { status: 200 }),
+    )
+  })
+
+  const request = new Request('http://localhost/api/brain', {
+    method: 'POST',
+    body: JSON.stringify({ query: 'hello' }),
+    headers: { 'Content-Type': 'application/json' },
+    signal: clientAbort.signal,
+  })
+
+  const res = await POST(request)
+  // L'abort pré-stream tombe dans le catch existant → 502, pas de pendaison.
+  expect(res.status).toBe(502)
+})
+
+test('Dify muet pendant la phase headers → timeout de connexion 30 s → 502', async () => {
+  vi.useFakeTimers()
+  try {
+    auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+    // Dify accepte la connexion mais n'envoie jamais les headers : la
+    // promesse ne se résout que si le signal du caller est aborté.
+    streamChat.mockImplementation(
+      (args: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          args.signal?.addEventListener(
+            'abort',
+            () => reject(new Error('The operation timed out')),
+            { once: true },
+          )
+        }),
+    )
+
+    const resPromise = POST(makeRequest({ query: 'hello' }))
+    await vi.advanceTimersByTimeAsync(30_000)
+    const res = await resPromise
+    expect(res.status).toBe(502)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
 test('streamChat throw → 502', async () => {
   auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
   streamChat.mockRejectedValue(new Error('network'))
