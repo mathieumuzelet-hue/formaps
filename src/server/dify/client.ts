@@ -16,10 +16,22 @@ function difyConfig(): { base: string; apiKey: string } {
   return { base, apiKey }
 }
 
+/**
+ * Feedback relay is best-effort: it must never hang the tRPC mutation that
+ * calls it, so the fetch is bounded by this hard timeout.
+ */
+const FEEDBACK_TIMEOUT_MS = 10_000
+
 type StreamChatArgs = {
   query: string
   user: string
   conversationId?: string | null
+  /**
+   * Caller-controlled abort (connect timeout, client disconnect). No default
+   * timeout here on purpose: a blanket AbortSignal.timeout would also kill
+   * long generations mid-stream — lifecycle policy belongs to the caller.
+   */
+  signal?: AbortSignal
 }
 
 /**
@@ -29,11 +41,17 @@ type StreamChatArgs = {
  *
  * Throws if `DIFY_API_URL` / `DIFY_API_KEY` are not configured.
  */
-export async function streamChat({ query, user, conversationId }: StreamChatArgs): Promise<Response> {
+export async function streamChat({
+  query,
+  user,
+  conversationId,
+  signal,
+}: StreamChatArgs): Promise<Response> {
   const { base, apiKey } = difyConfig()
 
   return fetch(`${base}/v1/chat-messages`, {
     method: 'POST',
+    signal,
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -62,6 +80,7 @@ export async function sendFeedback({ messageId, rating, user }: SendFeedbackArgs
   const { base, apiKey } = difyConfig()
   const res = await fetch(`${base}/v1/messages/${encodeURIComponent(messageId)}/feedbacks`, {
     method: 'POST',
+    signal: AbortSignal.timeout(FEEDBACK_TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
