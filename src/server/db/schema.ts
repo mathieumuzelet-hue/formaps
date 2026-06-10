@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, date, timestamp, boolean, pgEnum, unique, real, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, integer, date, timestamp, boolean, pgEnum, unique, real, index, primaryKey } from 'drizzle-orm/pg-core'
 
 export const roleEnum = pgEnum('role', ['employee', 'admin'])
 export const kindEnum = pgEnum('formation_kind', ['sharepoint', 'pdf'])
@@ -53,6 +53,11 @@ export const formationDocuments = pgTable('formation_documents', {
   order: integer('order').notNull().default(0),
 })
 
+/**
+ * LEGACY — no longer read nor written since the automatic progression from
+ * document views (see `userDocumentViews`). Kept in the database for now;
+ * drop in a future migration.
+ */
 export const userFormationProgress = pgTable('user_formation_progress', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -61,6 +66,18 @@ export const userFormationProgress = pgTable('user_formation_progress', {
   progressPercent: integer('progress_percent').notNull().default(0),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => ({ uniqUserFormation: unique().on(t.userId, t.formationId) }))
+
+/**
+ * One row per (user, document) recorded the first time the user opens or
+ * downloads the document (`GET /api/documents/[docId]/download`, inserted
+ * fire-and-forget with `onConflictDoNothing`). Drives the automatic formation
+ * progression computed by `progress.mine`.
+ */
+export const userDocumentViews = pgTable('user_document_views', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentId: uuid('document_id').notNull().references(() => formationDocuments.id, { onDelete: 'cascade' }),
+  viewedAt: timestamp('viewed_at').defaultNow().notNull(),
+}, (t) => ({ pk: primaryKey({ columns: [t.userId, t.documentId] }) }))
 
 export const news = pgTable('news', {
   id: uuid('id').primaryKey().defaultRandom(),

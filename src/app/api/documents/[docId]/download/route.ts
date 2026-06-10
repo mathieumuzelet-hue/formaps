@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 
 import { auth } from '@/server/auth'
 import { db } from '@/server/db'
-import { formationDocuments } from '@/server/db/schema'
+import { formationDocuments, userDocumentViews } from '@/server/db/schema'
 
 export const runtime = 'nodejs'
 
@@ -34,6 +34,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ docId: s
   if (!doc) {
     return new Response('not found', { status: 404 })
   }
+
+  // Enregistre la vue (alimente la progression automatique) en fire-and-forget :
+  // ne retarde jamais la réponse et ne la fait jamais échouer, même DB down.
+  void Promise.resolve(
+    db
+      .insert(userDocumentViews)
+      .values({ userId: session.user.id, documentId: docId })
+      .onConflictDoNothing(),
+  ).catch(() => {})
 
   const filePath = path.join(uploadsDir(), `${docId}.pdf`)
   try {
