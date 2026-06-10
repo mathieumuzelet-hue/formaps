@@ -18,18 +18,17 @@ import {
 } from '@/lib/embed-test/types'
 import { escapeSeparator, type Chunk } from '@/lib/embed-test/chunker'
 import type { TextDiagnostic } from '@/lib/embed-test/types'
-
-export const EMBED_TEST_MODELS: Record<EmbedTestModelKey, string> = {
-  sonnet: 'claude-sonnet-4-6',
-  opus: 'claude-opus-4-8',
-}
-
 import {
   forcedToolCall,
   createAnthropicClient,
   type AnthropicLike,
   type Usage,
 } from '@/server/claude-core'
+
+export const EMBED_TEST_MODELS: Record<EmbedTestModelKey, string> = {
+  sonnet: 'claude-sonnet-4-6',
+  opus: 'claude-opus-4-8',
+}
 
 export { createAnthropicClient }
 export type { AnthropicLike, Usage }

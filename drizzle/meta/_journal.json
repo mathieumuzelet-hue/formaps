@@ -50,6 +50,13 @@
       "when": 1781090574828,
       "tag": "0006_formation_cover",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781102731893,
+      "tag": "0007_jittery_mesmero",
+      "breakpoints": true
     }
   ]
 }

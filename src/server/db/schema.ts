@@ -1,4 +1,6 @@
-import { pgTable, uuid, text, integer, date, timestamp, boolean, pgEnum, unique, real, index, primaryKey } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, integer, date, timestamp, boolean, pgEnum, unique, real, index, primaryKey, jsonb } from 'drizzle-orm/pg-core'
+
+import type { FaqItem } from '@/lib/faq/types'
 
 export const roleEnum = pgEnum('role', ['employee', 'admin'])
 export const kindEnum = pgEnum('formation_kind', ['sharepoint', 'pdf'])
@@ -122,6 +124,20 @@ export const brainSuggestions = pgTable('brain_suggestions', {
   text: text('text').notNull(),
   sortOrder: integer('sort_order').notNull().default(0),
   isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+/**
+ * FAQ builder drafts (admin tool). `sourceText` keeps the extracted document
+ * text so "Générer plus" re-prompts Claude without re-uploading the file.
+ * `items` is the ordered Q/A list, replaced atomically by `updateItems`.
+ */
+export const faqDrafts = pgTable('faq_drafts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceFilename: text('source_filename').notNull(),
+  sourceText: text('source_text').notNull(),
+  items: jsonb('items').$type<FaqItem[]>().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
