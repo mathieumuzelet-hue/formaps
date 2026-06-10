@@ -150,6 +150,25 @@ test('auto-heal: 404 sur conversation existante (base Dify réinitialisée) → 
   expect(streamChat).toHaveBeenCalledTimes(2)
 })
 
+test('auto-heal discriminé : 400 invalid_param sur conversation existante → 502 SANS purge ni retry', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
+  // L'utilisateur a une conversation stockée parfaitement valide.
+  selectLimit.mockResolvedValue([{ difyConversationId: 'cv-valide' }])
+  // 400 SANS rapport avec la conversation (mauvais input, config app…).
+  streamChat.mockResolvedValue(
+    new Response('{"code":"invalid_param","message":"var x is required"}', { status: 400 }),
+  )
+
+  const res = await POST(makeRequest({ query: 'salut' }))
+
+  expect(res.status).toBe(502)
+  expect(await res.json()).toEqual({ error: 'dify_unavailable', status: 400 })
+  // Le contexte de conversation de l'utilisateur est PRÉSERVÉ.
+  expect(updateSet).not.toHaveBeenCalledWith({ difyConversationId: null })
+  // Et aucun retry inutile.
+  expect(streamChat).toHaveBeenCalledTimes(1)
+})
+
 test('404 SANS conversation stockée → 502 direct, aucun retry', async () => {
   auth.mockResolvedValue({ user: { id: 'u1', role: 'employee', storeId: null, firstName: 'Léa' } })
   // Pas de conversation stockée : un 404 = vrai problème d'URL/config Dify.

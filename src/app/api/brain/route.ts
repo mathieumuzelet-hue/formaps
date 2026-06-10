@@ -4,6 +4,7 @@ import { auth } from '@/server/auth'
 import { db } from '@/server/db'
 import { users, chatQueries } from '@/server/db/schema'
 import { streamChat } from '@/server/dify/client'
+import { shouldResetConversation } from '@/server/dify/heal'
 import { parseDifyEvent, parseSSELines } from '@/lib/dify/parse'
 import { relevanceThreshold, buildChatQueryValues } from '@/server/brain/chat-log'
 
@@ -89,10 +90,28 @@ export async function POST(request: Request): Promise<Response> {
   //     the model config per conversation, e.g. after changing the model).
   //   - 404 "Conversation Not Exists": the conversation is gone (e.g. the Dify
   //     database was reset/restored).
-  // Clear the stored conversation id and retry ONCE with a fresh conversation,
-  // so the user is never stuck. A 404 WITHOUT a conversation id is a real
-  // URL/config problem and must surface as an error (no retry).
+  // BUT Dify also returns 400 for causes unrelated to the conversation
+  // (invalid_param, app_unavailable, provider quota…): the error code is
+  // discriminated via shouldResetConversation before destroying the user's
+  // context. When the heal applies, clear the stored conversation id and retry
+  // ONCE with a fresh conversation, so the user is never stuck. A 404 WITHOUT
+  // a conversation id is a real URL/config problem and must surface as an
+  // error (no retry).
   if (!upstream.ok && (upstream.status === 400 || upstream.status === 404) && conversationId) {
+    // Consume the body: releases the undici socket AND lets us discriminate
+    // the Dify error code before destroying the user's conversation context.
+    let bodyText = ''
+    try {
+      bodyText = await upstream.text()
+    } catch {
+      /* ignore */
+    }
+    if (!shouldResetConversation(upstream.status, bodyText)) {
+      console.error(
+        `[brain] Dify ${upstream.status} non lié à la conversation: ${bodyText.slice(0, 500)}`,
+      )
+      return json({ error: 'dify_unavailable', status: upstream.status }, 502)
+    }
     console.warn(
       `[brain] ${upstream.status} sur conversation existante → reset conversation + retry`,
     )
