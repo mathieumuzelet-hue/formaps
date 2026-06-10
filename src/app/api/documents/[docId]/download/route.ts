@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 
 import { auth } from '@/server/auth'
 import { db } from '@/server/db'
-import { formationDocuments } from '@/server/db/schema'
+import { formationDocuments, userDocumentViews } from '@/server/db/schema'
 
 export const runtime = 'nodejs'
 
@@ -14,10 +14,11 @@ function uploadsDir(): string {
 }
 
 /**
- * Téléchargement d'un PDF, réservé aux utilisateurs authentifiés (employee ou
- * admin). Sert le fichier inline depuis le volume persistant.
+ * Sert un PDF depuis le volume persistant, réservé aux utilisateurs
+ * authentifiés (employee ou admin). Inline par défaut (visionneuse du
+ * navigateur, bouton « Consulter ») ; `?download=1` force le téléchargement.
  */
-export async function GET(_req: Request, { params }: { params: Promise<{ docId: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ docId: string }> }) {
   const { docId } = await params
 
   const session = await auth()
@@ -34,6 +35,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ docId: 
     return new Response('not found', { status: 404 })
   }
 
+  // Enregistre la vue (alimente la progression automatique) en fire-and-forget :
+  // ne retarde jamais la réponse et ne la fait jamais échouer, même DB down.
+  void Promise.resolve(
+    db
+      .insert(userDocumentViews)
+      .values({ userId: session.user.id, documentId: docId })
+      .onConflictDoNothing(),
+  ).catch(() => {})
+
   const filePath = path.join(uploadsDir(), `${docId}.pdf`)
   try {
     await fs.stat(filePath)
@@ -43,10 +53,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ docId: 
 
   const buf = await fs.readFile(filePath)
   const safeName = (doc.title || 'document').replace(/[^a-zA-Z0-9._-]/g, '_')
+  const wantsDownload = new URL(req.url).searchParams.get('download') === '1'
   return new Response(new Uint8Array(buf), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${safeName}.pdf"`,
+      'Content-Disposition': `${wantsDownload ? 'attachment' : 'inline'}; filename="${safeName}.pdf"`,
     },
   })
 }

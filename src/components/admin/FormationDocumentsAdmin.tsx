@@ -123,7 +123,7 @@ export function FormationDocumentsAdmin({ formationId }: { formationId: string }
                     rel="noreferrer"
                     className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sand/50"
                   >
-                    Télécharger
+                    Consulter
                   </a>
                   <button
                     type="button"
