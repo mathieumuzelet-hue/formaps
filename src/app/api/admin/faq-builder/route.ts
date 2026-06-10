@@ -80,6 +80,7 @@ export async function POST(req: Request): Promise<Response> {
     pairs = (await generateFaqPairs(createAnthropicClient(), text)).data
   } catch (err) {
     if (err instanceof ClaudeOutputTruncatedError) {
+      console.error('[faq-builder] Claude output truncated at max_tokens')
       return json({ error: 'output_truncated' }, 502)
     }
     console.error('[faq-builder] generation failed:', err)
@@ -94,7 +95,7 @@ export async function POST(req: Request): Promise<Response> {
   }))
   const [draft] = await db
     .insert(faqDrafts)
-    .values({ sourceFilename: file.name, sourceText: text, items })
+    .values({ sourceFilename: file.name.slice(0, 255), sourceText: text, items })
     .returning({ id: faqDrafts.id })
   return json({ id: draft.id, count: items.length }, 201)
 }

@@ -1,15 +1,15 @@
 // @vitest-environment node
 import { beforeEach, expect, test, vi } from 'vitest'
 
-const { auth, extractPages, extractDocxText, generateFaqPairs, insertReturning } = vi.hoisted(
-  () => ({
+const { auth, extractPages, extractDocxText, generateFaqPairs, insertReturning, insertValues } =
+  vi.hoisted(() => ({
     auth: vi.fn(),
     extractPages: vi.fn(),
     extractDocxText: vi.fn(),
     generateFaqPairs: vi.fn(),
     insertReturning: vi.fn(),
-  }),
-)
+    insertValues: vi.fn(),
+  }))
 
 vi.mock('@/server/auth', () => ({ auth }))
 vi.mock('@/server/embed-test/extract', async (importOriginal) => ({
@@ -26,10 +26,16 @@ vi.mock('@/server/claude-core', async (importOriginal) => ({
   createAnthropicClient: vi.fn(() => ({})),
 }))
 vi.mock('@/server/db', () => ({
-  db: { insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: insertReturning })) })) },
+  db: {
+    insert: vi.fn(() => ({
+      values: insertValues.mockImplementation(() => ({ returning: insertReturning })),
+    })),
+  },
 }))
 
 import { ClaudeOutputTruncatedError } from '@/server/claude-core'
+import { PdfUnreadableError } from '@/server/embed-test/extract'
+import { DocxUnreadableError } from '@/server/faq/extract-docx'
 import { POST } from '@/app/api/admin/faq-builder/route'
 
 const ADMIN = { user: { id: 'a1', role: 'admin' } }
@@ -86,6 +92,20 @@ test('PDF valide → extraction unpdf, génération, 201 avec id', async () => {
   expect(await res.json()).toEqual({ id: 'draft-1', count: 1 })
   expect(extractPages).toHaveBeenCalled()
   expect(extractDocxText).not.toHaveBeenCalled()
+  expect(insertValues).toHaveBeenCalledWith(
+    expect.objectContaining({
+      sourceFilename: 'doc.pdf',
+      sourceText: expect.stringContaining('x'),
+      items: [
+        expect.objectContaining({
+          question: 'Q ?',
+          answer: 'R.',
+          origin: 'generated',
+          id: expect.any(String),
+        }),
+      ],
+    }),
+  )
 })
 
 test('docx valide → extraction mammoth, 201', async () => {
@@ -101,6 +121,31 @@ test('génération Claude en échec → 502 generation_failed, pas de brouillon 
   expect(res.status).toBe(502)
   expect(await res.json()).toEqual({ error: 'generation_failed' })
   expect(insertReturning).not.toHaveBeenCalled()
+})
+
+test('PDF illisible → 422 unreadable_document', async () => {
+  extractPages.mockRejectedValue(new PdfUnreadableError())
+  const res = await POST(request('a.pdf', PDF_BYTES))
+  expect(res.status).toBe(422)
+  expect(await res.json()).toEqual({ error: 'unreadable_document' })
+})
+
+test('docx illisible → 422 unreadable_document', async () => {
+  extractDocxText.mockRejectedValue(new DocxUnreadableError())
+  const res = await POST(request('a.docx', DOCX_BYTES))
+  expect(res.status).toBe(422)
+  expect(await res.json()).toEqual({ error: 'unreadable_document' })
+})
+
+test('fichier trop gros → 413 ; form sans fichier → 400', async () => {
+  const big = new Uint8Array(25 * 1024 * 1024 + 1)
+  big.set(PDF_BYTES)
+  expect((await POST(request('a.pdf', big))).status).toBe(413)
+  const form = new FormData()
+  const res = await POST(
+    new Request('http://test/api/admin/faq-builder', { method: 'POST', body: form }),
+  )
+  expect(res.status).toBe(400)
 })
 
 test('sortie Claude tronquée (max_tokens) → 502 output_truncated', async () => {
