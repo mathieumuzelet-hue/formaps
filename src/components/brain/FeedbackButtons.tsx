@@ -18,8 +18,13 @@ export function FeedbackButtons({ messageId }: { messageId: string }) {
 
   const send = (value: Feedback) => {
     if (feedback.isPending || selected === value) return
+    const previous = selected
     setSelected(value)
-    feedback.mutate({ messageId, feedback: value })
+    // Optimistic UI: roll back if the mutation fails so 👍 never lies.
+    feedback.mutate(
+      { messageId, feedback: value },
+      { onError: () => setSelected(previous) },
+    )
   }
 
   const btn = (value: Feedback, icon: string, label: string) => {

@@ -115,6 +115,46 @@ describe('useBrainChat', () => {
     expect(result.current.messages[1].text).toBe('Bonjour')
   })
 
+  it("annote le texte déjà streamé quand l'erreur arrive mi-stream (boucle)", async () => {
+    const errorFrame =
+      'data: {"event":"error","message":"capacity exceeded"}\n\n'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => streamingResponse([MESSAGE_FRAME, errorFrame])),
+    )
+
+    const { result } = renderHook(() => useBrainChat())
+    await act(async () => {
+      await result.current.send('q')
+    })
+    await waitFor(() => expect(result.current.status).toBe('error'))
+
+    // Les deltas déjà visibles ne sont PAS écrasés : l'erreur est annotée après.
+    expect(result.current.messages[1].text).toBe(
+      'Bonjour\n\n— Le modèle est momentanément surchargé. Réessayez dans un instant.',
+    )
+  })
+
+  it("annote le texte déjà streamé quand l'erreur arrive dans le flush final", async () => {
+    // Frame d'erreur SANS terminateur \n\n : elle reste dans le buffer et n'est
+    // vue qu'au flush après la fin du stream.
+    const trailingError = 'data: {"event":"error","message":"boom"}'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => streamingResponse([MESSAGE_FRAME, trailingError])),
+    )
+
+    const { result } = renderHook(() => useBrainChat())
+    await act(async () => {
+      await result.current.send('q')
+    })
+    await waitFor(() => expect(result.current.status).toBe('error'))
+
+    expect(result.current.messages[1].text).toBe(
+      "Bonjour\n\n— BRAIN n'a pas pu répondre (erreur du modèle). Réessayez, ou prévenez l'administrateur si cela persiste.",
+    )
+  })
+
   it('sets error status when the route fails', async () => {
     vi.stubGlobal(
       'fetch',

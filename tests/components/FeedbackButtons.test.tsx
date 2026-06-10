@@ -23,10 +23,16 @@ test('clic 👍 → mutation like ; clic 👎 ensuite → mutation dislike (écr
   render(<FeedbackButtons messageId="msg-7" />)
 
   fireEvent.click(screen.getByRole('button', { name: /réponse utile/i }))
-  expect(feedbackMutate).toHaveBeenCalledWith({ messageId: 'msg-7', feedback: 'like' })
+  expect(feedbackMutate).toHaveBeenCalledWith(
+    { messageId: 'msg-7', feedback: 'like' },
+    expect.objectContaining({ onError: expect.any(Function) }),
+  )
 
   fireEvent.click(screen.getByRole('button', { name: /réponse inutile/i }))
-  expect(feedbackMutate).toHaveBeenCalledWith({ messageId: 'msg-7', feedback: 'dislike' })
+  expect(feedbackMutate).toHaveBeenCalledWith(
+    { messageId: 'msg-7', feedback: 'dislike' },
+    expect.objectContaining({ onError: expect.any(Function) }),
+  )
 })
 
 test('le bouton sélectionné est marqué aria-pressed', () => {
@@ -35,4 +41,16 @@ test('le bouton sélectionné est marqué aria-pressed', () => {
   expect(like).toHaveAttribute('aria-pressed', 'false')
   fireEvent.click(like)
   expect(like).toHaveAttribute('aria-pressed', 'true')
+})
+
+test("rollback de l'état optimiste si la mutation échoue", () => {
+  // mutate appelle options.onError → l'UI doit revenir à l'état précédent.
+  feedbackMutate.mockImplementation(
+    (_input: unknown, opts?: { onError?: (e: Error) => void }) =>
+      opts?.onError?.(new Error('boom')),
+  )
+  render(<FeedbackButtons messageId="m1" />)
+  const like = screen.getByRole('button', { name: /réponse utile/i })
+  fireEvent.click(like)
+  expect(like).toHaveAttribute('aria-pressed', 'false')
 })
