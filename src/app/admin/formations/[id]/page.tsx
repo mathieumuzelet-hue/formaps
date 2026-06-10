@@ -14,8 +14,10 @@ export default async function AdminFormationDocumentsPage({
   const { id } = await params
   return (
     <div className="space-y-6">
-      <FormationCoverAdmin formationId={id} />
+      {/* FormationDocumentsAdmin embarque le header de page (breadcrumb + h1),
+          il doit donc rester le premier bloc rendu. */}
       <FormationDocumentsAdmin formationId={id} />
+      <FormationCoverAdmin formationId={id} />
     </div>
   )
 }
