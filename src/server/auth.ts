@@ -5,9 +5,16 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 import authConfig from './auth.config'
+import { normalizeEmail } from '@/lib/email'
 import { db } from './db'
 import { users } from './db/schema'
-import { verifyPassword } from './auth/password'
+import { hashPassword, verifyPassword } from './auth/password'
+import {
+  clearLoginFailures,
+  isRateLimited,
+  loginRateLimitKey,
+  recordLoginFailure,
+} from './auth/rate-limit'
 import { validatePasswordFreshness } from './auth/token-validation'
 
 // Fail loud at import time (Node runtime only) if the signing secret is absent,
@@ -18,9 +25,73 @@ if (!process.env.AUTH_SECRET) {
 }
 
 const credentialsSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  // .trim() AVANT .email() : un email collé avec des espaces (copier-coller)
+  // doit passer la validation ; normalizeEmail canonise ensuite (lowercase).
+  email: z.string().trim().email(),
+  // .max(128) borne le coût argon2 (DoS par mot de passe de plusieurs Mo).
+  password: z.string().min(1).max(128),
 })
+
+// Hash factice vérifié quand l'email n'existe pas en base : le temps de
+// réponse ne distingue plus « email inconnu » de « mot de passe faux »
+// (oracle d'énumération). Jamais le hash d'un vrai mot de passe.
+const dummyHashPromise: Promise<string> = hashPassword('timing-equalizer-dummy')
+
+/**
+ * Coeur de l'authentification credentials, exporté pour les tests (même
+ * pattern que nodeJwtCallback). Rate-limit par ip|email AVANT tout travail
+ * coûteux ; normalisation email ; projection explicite (jamais SELECT *).
+ */
+export async function authorizeCredentials(
+  creds: unknown,
+  request: Request | undefined,
+) {
+  const parsed = credentialsSchema.safeParse(creds)
+  if (!parsed.success) return null
+  const email = normalizeEmail(parsed.data.email)
+  const { password } = parsed.data
+
+  const ip =
+    request?.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const rlKey = loginRateLimitKey(ip, email)
+  if (isRateLimited(rlKey)) return null
+
+  const [user] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      passwordHash: users.passwordHash,
+      role: users.role,
+      storeId: users.storeId,
+      passwordChangedAt: users.passwordChangedAt,
+    })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1)
+
+  if (!user) {
+    await verifyPassword(await dummyHashPromise, password)
+    recordLoginFailure(rlKey)
+    return null
+  }
+
+  const ok = await verifyPassword(user.passwordHash, password)
+  if (!ok) {
+    recordLoginFailure(rlKey)
+    return null
+  }
+
+  clearLoginFailures(rlKey)
+  return {
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    role: user.role,
+    storeId: user.storeId,
+    passwordChangedAt: user.passwordChangedAt.getTime(),
+  }
+}
 
 type JwtCallback = NonNullable<NonNullable<NextAuthConfig['callbacks']>['jwt']>
 
@@ -62,31 +133,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: {},
         password: {},
       },
-      authorize: async (creds) => {
-        const parsed = credentialsSchema.safeParse(creds)
-        if (!parsed.success) return null
-        const { email, password } = parsed.data
-
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, email))
-          .limit(1)
-
-        if (!user) return null
-
-        const ok = await verifyPassword(user.passwordHash, password)
-        if (!ok) return null
-
-        return {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          role: user.role,
-          storeId: user.storeId,
-          passwordChangedAt: user.passwordChangedAt.getTime(),
-        }
-      },
+      authorize: authorizeCredentials,
     }),
   ],
 })
