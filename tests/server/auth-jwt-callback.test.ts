@@ -12,9 +12,11 @@ vi.mock('@/server/db', () => ({
   },
 }))
 // argon2 est natif et inutile ici — on neutralise le module password.
+// hashPassword doit résoudre une promesse : auth.ts chaîne .catch() dessus
+// au chargement du module (dummyHashPromise).
 vi.mock('@/server/auth/password', () => ({
   verifyPassword: vi.fn(),
-  hashPassword: vi.fn(),
+  hashPassword: vi.fn(async () => '$argon2id$dummy'),
 }))
 
 // auth.ts jette à l'import sans AUTH_SECRET ; on le pose AVANT l'import dynamique.

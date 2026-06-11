@@ -27,7 +27,8 @@ if (!process.env.AUTH_SECRET) {
 const credentialsSchema = z.object({
   // .trim() AVANT .email() : un email collé avec des espaces (copier-coller)
   // doit passer la validation ; normalizeEmail canonise ensuite (lowercase).
-  email: z.string().trim().email(),
+  // .max(254) = borne RFC 5321 d'une adresse, appliquée APRÈS trim.
+  email: z.string().trim().max(254).email(),
   // .max(128) borne le coût argon2 (DoS par mot de passe de plusieurs Mo).
   password: z.string().min(1).max(128),
 })
@@ -35,7 +36,9 @@ const credentialsSchema = z.object({
 // Hash factice vérifié quand l'email n'existe pas en base : le temps de
 // réponse ne distingue plus « email inconnu » de « mot de passe faux »
 // (oracle d'énumération). Jamais le hash d'un vrai mot de passe.
-const dummyHashPromise: Promise<string> = hashPassword('timing-equalizer-dummy')
+const dummyHashPromise: Promise<string> = hashPassword('timing-equalizer-dummy').catch(
+  () => '$argon2id$boot-fallback-invalid', // verifyPassword(garbage) => false, jamais de throw
+)
 
 /**
  * Coeur de l'authentification credentials, exporté pour les tests (même
@@ -51,8 +54,11 @@ export async function authorizeCredentials(
   const email = normalizeEmail(parsed.data.email)
   const { password } = parsed.data
 
-  const ip =
-    request?.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  // Derrière EXACTEMENT un proxy de confiance (Traefik, qui réécrit
+  // x-forwarded-for), le dernier élément est l'IP posée par le proxy — le
+  // premier deviendrait contrôlable par le client si un CDN s'ajoutait devant.
+  const forwarded = request?.headers.get('x-forwarded-for')
+  const ip = forwarded?.split(',').at(-1)?.trim() || 'unknown'
   const rlKey = loginRateLimitKey(ip, email)
   if (isRateLimited(rlKey)) return null
 
