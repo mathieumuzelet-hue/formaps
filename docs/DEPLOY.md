@@ -102,6 +102,8 @@ curl).
 #### Restauration
 
 ```bash
+# 0. Stopper le service web d'abord (docker stop <container web>) : des connexions
+#    actives bloqueraient les DROP du --clean et serviraient des données incohérentes.
 # 1. Récupérer les objets du jour voulu depuis le bucket (dashboard ou rclone).
 # 2. Base (depuis un shell sur le VPS, fichier copié dans le container db) :
 docker cp db-YYYY-MM-DD.dump <container db>:/tmp/restore.dump
@@ -110,8 +112,9 @@ docker exec <container db> sh -c 'pg_restore --clean --if-exists \
 # 3. Uploads (dans le container web) :
 docker cp uploads-YYYY-MM-DD.tar.gz <container web>:/tmp/u.tar.gz
 docker exec <container web> sh -c "tar -xzf /tmp/u.tar.gz -C /app/uploads"
-# 4. Redémarrer le service web (sessions/JWT inchangés, aucune migration à rejouer
-#    si le dump date de la même version de schéma ; sinon le boot ré-applique).
+# 4. Redémarrer le service web (docker start <container web>) — sessions/JWT
+#    inchangés, aucune migration à rejouer si le dump date de la même version de
+#    schéma ; sinon le boot ré-applique.
 ```
 
 ## 3. Domaine + réseau Traefik (points critiques)
