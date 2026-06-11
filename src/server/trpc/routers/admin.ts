@@ -215,8 +215,10 @@ const formationsRouter = router({
 
       if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Document introuvable' })
 
+      // Nettoyage disque best-effort (même pattern que formations.delete) : un
+      // échec fs ne fait pas échouer la mutation — la ligne DB est déjà supprimée.
       const dir = process.env.UPLOADS_DIR || '/app/uploads'
-      await fs.rm(path.join(dir, `${input.docId}.pdf`), { force: true })
+      await fs.rm(path.join(dir, `${input.docId}.pdf`), { force: true }).catch(() => {})
 
       return { docId: input.docId }
     }),

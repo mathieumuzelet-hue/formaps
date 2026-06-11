@@ -80,3 +80,17 @@ describe('admin.formations.delete — nettoyage disque', () => {
     expect(rm).not.toHaveBeenCalled()
   })
 })
+
+describe('admin.formations.deleteDocument — nettoyage disque', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    rm.mockResolvedValue(undefined)
+    deleteReturning.mockResolvedValue([{ id: DOC_A }])
+  })
+
+  it("un échec fs ne fait pas échouer la mutation (best-effort)", async () => {
+    rm.mockRejectedValue(new Error('EACCES'))
+    const result = await caller.formations.deleteDocument({ docId: DOC_A })
+    expect(result).toEqual({ docId: DOC_A })
+  })
+})
