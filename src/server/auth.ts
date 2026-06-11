@@ -137,7 +137,6 @@ export const nodeJwtCallback: JwtCallback = async (params) => {
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  session: { strategy: 'jwt' },
   callbacks: {
     ...authConfig.callbacks,
     jwt: nodeJwtCallback,

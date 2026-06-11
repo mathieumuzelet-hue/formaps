@@ -21,6 +21,9 @@ export const authConfig = {
   },
   session: {
     strategy: 'jwt',
+    // 7 jours (défaut Auth.js = 30 j). Les claims role/storeId étant rafraîchis
+    // à chaque requête (token-validation.ts), c'est une 2e ligne de défense.
+    maxAge: 7 * 24 * 60 * 60,
   },
   providers: [],
   callbacks: {
