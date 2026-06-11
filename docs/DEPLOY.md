@@ -109,12 +109,13 @@ curl).
 docker cp db-YYYY-MM-DD.dump <container db>:/tmp/restore.dump
 docker exec <container db> sh -c 'pg_restore --clean --if-exists \
   -U "$POSTGRES_USER" -d "$POSTGRES_DB" /tmp/restore.dump'
-# 3. Uploads (dans le container web) :
-docker cp uploads-YYYY-MM-DD.tar.gz <container web>:/tmp/u.tar.gz
-docker exec <container web> sh -c "tar -xzf /tmp/u.tar.gz -C /app/uploads"
-# 4. Redémarrer le service web (docker start <container web>) — sessions/JWT
+# 3. Redémarrer le service web (docker start <container web>) — sessions/JWT
 #    inchangés, aucune migration à rejouer si le dump date de la même version de
 #    schéma ; sinon le boot ré-applique.
+# 4. Uploads (dans le container web, qui doit tourner : `docker exec` exige un
+#    conteneur démarré, contrairement à `docker cp`) :
+docker cp uploads-YYYY-MM-DD.tar.gz <container web>:/tmp/u.tar.gz
+docker exec <container web> sh -c "tar -xzf /tmp/u.tar.gz -C /app/uploads"
 ```
 
 ## 3. Domaine + réseau Traefik (points critiques)
