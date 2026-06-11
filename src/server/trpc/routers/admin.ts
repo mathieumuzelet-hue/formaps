@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { asc, desc, eq, like, max } from 'drizzle-orm'
+import { asc, count, desc, eq, like, max } from 'drizzle-orm'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
@@ -228,6 +228,34 @@ const usersRouter = router({
 
   update: adminProcedure.input(userUpdateSchema).mutation(async ({ ctx, input }) => {
     const { id, password, ...rest } = input
+
+    if (rest.role === 'employee') {
+      if (id === ctx.user.id) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Impossible de se rétrograder soi-même.',
+        })
+      }
+      const [target] = await ctx.db
+        .select({ role: users.role })
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1)
+      if (target?.role === 'admin') {
+        // Fenêtre de course admin↔admin assumée sans transaction : deux demotes
+        // strictement simultanés sont irréalistes sur ce produit interne.
+        const [admins] = await ctx.db
+          .select({ n: count() })
+          .from(users)
+          .where(eq(users.role, 'admin'))
+        if ((admins?.n ?? 0) <= 1) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Il doit rester au moins un administrateur.',
+          })
+        }
+      }
+    }
 
     const fields: Record<string, unknown> = { ...rest, updatedAt: new Date() }
     if (password !== undefined) {
