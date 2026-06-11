@@ -62,20 +62,34 @@ const storesRouter = router({
   }),
 
   create: adminProcedure.input(storeCreateSchema).mutation(async ({ ctx, input }) => {
-    const [row] = await ctx.db.insert(stores).values(input).returning()
-    return row
+    try {
+      const [row] = await ctx.db.insert(stores).values(input).returning()
+      return row
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'Nom de magasin déjà utilisé' })
+      }
+      throw err
+    }
   }),
 
   update: adminProcedure.input(storeUpdateSchema).mutation(async ({ ctx, input }) => {
     const { id, ...fields } = input
-    const [row] = await ctx.db
-      .update(stores)
-      .set({ ...fields, updatedAt: new Date() })
-      .where(eq(stores.id, id))
-      .returning()
+    try {
+      const [row] = await ctx.db
+        .update(stores)
+        .set({ ...fields, updatedAt: new Date() })
+        .where(eq(stores.id, id))
+        .returning()
 
-    if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
-    return row
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      return row
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'Nom de magasin déjà utilisé' })
+      }
+      throw err
+    }
   }),
 
   /**
