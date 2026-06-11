@@ -61,5 +61,7 @@ HEALTHCHECK --interval=30s --timeout=4s --start-period=40s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
 
 # Run migrations, bootstrap the admin (env-driven, idempotent), then start the
-# standalone server. Fail loud if migrate fails.
-CMD ["sh", "-c", "node scripts/migrate.mjs && node scripts/bootstrap-admin.mjs && node server.js"]
+# standalone server. Fail loud if migrate fails. `exec` makes node the shell's
+# replacement process so Dokploy's SIGTERM reaches the server (graceful stop
+# instead of the 10s timeout → SIGKILL).
+CMD ["sh", "-c", "node scripts/migrate.mjs && node scripts/bootstrap-admin.mjs && exec node server.js"]

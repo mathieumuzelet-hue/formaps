@@ -5,6 +5,11 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -24,6 +29,11 @@ services:
   web:
     build: .
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       db:
         condition: service_healthy
@@ -62,6 +72,35 @@ services:
       - "traefik.http.services.cockpit.loadbalancer.server.port=3000"
       # Le service `web` doit utiliser le réseau Traefik pour être routable.
       - "traefik.docker.network=dokploy-network"
+
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile.backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Backups offsite S3/R2 — les 4 envs sont à poser dans l'UI Dokploy.
+      # Absents → le service logge un avertissement et reste inactif (fail-soft).
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_ACCESS_KEY: ${BACKUP_S3_ACCESS_KEY:-}
+      BACKUP_S3_SECRET: ${BACKUP_S3_SECRET:-}
+      # Période entre deux backups en secondes (vide → défaut 86400 = 24 h).
+      BACKUP_INTERVAL_S: ${BACKUP_INTERVAL_S:-}
+    volumes:
+      # Lecture seule : le sidecar n'écrit jamais dans les uploads.
+      - cockpit_uploads:/uploads:ro
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   internal:

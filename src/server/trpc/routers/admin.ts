@@ -158,12 +158,38 @@ const formationsRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Collecte AVANT le delete : la cascade DB efface formation_documents,
+      // or les fichiers vivent à `${UPLOADS_DIR}/<docId>.pdf`.
+      const docs = await ctx.db
+        .select({ id: formationDocuments.id })
+        .from(formationDocuments)
+        .where(eq(formationDocuments.formationId, input.id))
+
       const [row] = await ctx.db
         .delete(formations)
         .where(eq(formations.id, input.id))
         .returning()
 
       if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Formation introuvable' })
+
+      // Nettoyage disque best-effort (même pattern que news.delete) : un échec
+      // fs ne fait pas échouer la mutation — la cascade DB a déjà eu lieu.
+      const dir = process.env.UPLOADS_DIR || '/app/uploads'
+      await Promise.all(
+        docs.map((d) => fs.rm(path.join(dir, `${d.id}.pdf`), { force: true }).catch(() => {})),
+      )
+      const coversDir = path.join(dir, 'formations')
+      try {
+        const entries = await fs.readdir(coversDir)
+        await Promise.all(
+          entries
+            .filter((name) => name.startsWith(`${input.id}.`))
+            .map((name) => fs.rm(path.join(coversDir, name), { force: true })),
+        )
+      } catch {
+        // Dossier absent (aucune couverture jamais uploadée) — ignore.
+      }
+
       return { id: input.id }
     }),
 
@@ -189,8 +215,10 @@ const formationsRouter = router({
 
       if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Document introuvable' })
 
+      // Nettoyage disque best-effort (même pattern que formations.delete) : un
+      // échec fs ne fait pas échouer la mutation — la ligne DB est déjà supprimée.
       const dir = process.env.UPLOADS_DIR || '/app/uploads'
-      await fs.rm(path.join(dir, `${input.docId}.pdf`), { force: true })
+      await fs.rm(path.join(dir, `${input.docId}.pdf`), { force: true }).catch(() => {})
 
       return { docId: input.docId }
     }),

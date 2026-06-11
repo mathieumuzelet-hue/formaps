@@ -68,6 +68,56 @@ d'alimenter la page admin « Trous FAQ ». Ce texte libre peut contenir des
 DELETE FROM chat_queries WHERE created_at < now() - interval '12 months';
 ```
 
+### Backups (offsite S3/R2)
+
+Le service compose `backup` (image `Dockerfile.backup`) exécute chaque jour :
+`pg_dump -Fc` de la base + `tar.gz` du volume `cockpit_uploads`, uploadés vers un
+bucket S3-compatible (Cloudflare R2). Sans configuration, le service reste
+inactif et logge un avertissement (fail-soft).
+
+#### Mise en service (opérateur)
+
+1. Créer un bucket R2 (ex. `cockpit-backups`) — Cloudflare Dashboard → R2.
+2. Créer un token API R2 « Object Read & Write » limité à ce bucket ; noter
+   l'Access Key ID / Secret Access Key et l'endpoint
+   `https://<account-id>.r2.cloudflarestorage.com` (la valeur de
+   `BACKUP_S3_ENDPOINT` est l'hôte SANS `https://`).
+3. Règle de rétention : bucket → Settings → Object lifecycle rules → préfixe
+   `cockpit/`, suppression après 30 jours.
+4. Poser dans l'UI Dokploy : `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`,
+   `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET`, puis redéployer. Le `pg_dump`
+   s'exécute depuis le sidecar `backup` (pas depuis `db` ni `web`) ; tant que
+   ces 4 envs ne sont pas posés, le service reste **fail-soft** : il logge un
+   avertissement à chaque cycle et n'effectue aucun backup, sans crash-loop.
+5. Vérifier : `docker logs <container backup>` → `pg_dump OK` + `upload db OK`,
+   et la présence des 2 objets du jour dans le bucket.
+
+Test manuel à la demande : `docker exec <container backup> sh /backup.sh once`.
+
+Risque accepté : pendant l'upload, le secret S3 apparaît dans les arguments du
+processus `curl` à l'intérieur du conteneur backup (conteneur mono-processus
+non-root — accepté ; durcissement possible plus tard via un fichier de config
+curl).
+
+#### Restauration
+
+```bash
+# 0. Stopper le service web d'abord (docker stop <container web>) : des connexions
+#    actives bloqueraient les DROP du --clean et serviraient des données incohérentes.
+# 1. Récupérer les objets du jour voulu depuis le bucket (dashboard ou rclone).
+# 2. Base (depuis un shell sur le VPS, fichier copié dans le container db) :
+docker cp db-YYYY-MM-DD.dump <container db>:/tmp/restore.dump
+docker exec <container db> sh -c 'pg_restore --clean --if-exists \
+  -U "$POSTGRES_USER" -d "$POSTGRES_DB" /tmp/restore.dump'
+# 3. Redémarrer le service web (docker start <container web>) — sessions/JWT
+#    inchangés, aucune migration à rejouer si le dump date de la même version de
+#    schéma ; sinon le boot ré-applique.
+# 4. Uploads (dans le container web, qui doit tourner : `docker exec` exige un
+#    conteneur démarré, contrairement à `docker cp`) :
+docker cp uploads-YYYY-MM-DD.tar.gz <container web>:/tmp/u.tar.gz
+docker exec <container web> sh -c "tar -xzf /tmp/u.tar.gz -C /app/uploads"
+```
+
 ## 3. Domaine + réseau Traefik (points critiques)
 
 1. **Déclarer le domaine dans l'UI Dokploy** ET vérifier qu'il correspond
