@@ -105,15 +105,23 @@ type JwtCallback = NonNullable<NonNullable<NextAuthConfig['callbacks']>['jwt']>
  * Node-side jwt callback. At sign-in it delegates to the shared (edge-safe)
  * callback that stamps the claims. On every subsequent session read it kills
  * the token (return null → Auth.js invalidates the session) when the password
- * changed since the token was issued. DB errors fail open — see
- * token-validation.ts.
+ * changed since the token was issued, and refreshes role/storeId from the DB.
+ * DB errors fail open — see token-validation.ts.
  */
 export const nodeJwtCallback: JwtCallback = async (params) => {
   if (params.user) {
     return authConfig.callbacks.jwt(params)
   }
-  if ((await validatePasswordFreshness(params.token, db)) === 'stale') {
+  const freshness = await validatePasswordFreshness(params.token, db)
+  if (freshness.status === 'stale') {
     return null
+  }
+  // Réécrit les claims avec les valeurs DB fraîches : une rétrogradation ou un
+  // changement de magasin prend effet à la requête suivante. Fail-open (pas de
+  // claims) ⇒ on garde les claims existants du token.
+  if (freshness.claims) {
+    params.token.role = freshness.claims.role
+    params.token.storeId = freshness.claims.storeId
   }
   return params.token
 }

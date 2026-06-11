@@ -25,7 +25,13 @@ test('claim différent (mot de passe changé depuis) → stale', () => {
 
 // --- validatePasswordFreshness (db injectée) ------------------------------
 
-function makeDb(result: Promise<Array<{ passwordChangedAt: Date }>>) {
+type DbRow = {
+  passwordChangedAt: Date
+  role: 'employee' | 'admin'
+  storeId: string | null
+}
+
+function makeDb(result: Promise<Array<DbRow>>) {
   return {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
@@ -38,39 +44,52 @@ function makeDb(result: Promise<Array<{ passwordChangedAt: Date }>>) {
 const NOW = new Date('2026-06-01T10:00:00Z')
 
 test('claim aligné sur la DB → fresh', async () => {
-  const db = makeDb(Promise.resolve([{ passwordChangedAt: NOW }]))
+  const db = makeDb(Promise.resolve([{ passwordChangedAt: NOW, role: 'admin', storeId: null }]))
   await expect(
     validatePasswordFreshness({ sub: 'u1', passwordChangedAt: NOW.getTime() }, db),
-  ).resolves.toBe('fresh')
+  ).resolves.toMatchObject({ status: 'fresh' })
+})
+
+test('fresh : les claims DB (role, storeId) accompagnent le statut', async () => {
+  const db = makeDb(
+    Promise.resolve([{ passwordChangedAt: NOW, role: 'admin', storeId: 'store-9' }]),
+  )
+  await expect(
+    validatePasswordFreshness({ sub: 'u1', passwordChangedAt: NOW.getTime() }, db),
+  ).resolves.toEqual({ status: 'fresh', claims: { role: 'admin', storeId: 'store-9' } })
 })
 
 test("mot de passe changé depuis l'émission → stale", async () => {
-  const db = makeDb(Promise.resolve([{ passwordChangedAt: new Date('2026-06-02T08:00:00Z') }]))
+  const db = makeDb(
+    Promise.resolve([
+      { passwordChangedAt: new Date('2026-06-02T08:00:00Z'), role: 'employee', storeId: null },
+    ]),
+  )
   await expect(
     validatePasswordFreshness({ sub: 'u1', passwordChangedAt: NOW.getTime() }, db),
-  ).resolves.toBe('stale')
+  ).resolves.toEqual({ status: 'stale' })
 })
 
 test('user disparu → stale', async () => {
   const db = makeDb(Promise.resolve([]))
   await expect(
     validatePasswordFreshness({ sub: 'gone', passwordChangedAt: NOW.getTime() }, db),
-  ).resolves.toBe('stale')
+  ).resolves.toEqual({ status: 'stale' })
 })
 
 test('token sans sub → stale', async () => {
   const db = makeDb(Promise.resolve([]))
   await expect(
     validatePasswordFreshness({ passwordChangedAt: NOW.getTime() }, db),
-  ).resolves.toBe('stale')
+  ).resolves.toEqual({ status: 'stale' })
 })
 
-test('erreur DB → fresh (fail-open) + erreur loggée', async () => {
+test('erreur DB → fresh SANS claims (fail-open) + erreur loggée', async () => {
   const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
   const db = makeDb(Promise.reject(new Error('db down')))
   await expect(
     validatePasswordFreshness({ sub: 'u1', passwordChangedAt: NOW.getTime() }, db),
-  ).resolves.toBe('fresh')
+  ).resolves.toEqual({ status: 'fresh' })
   expect(consoleError).toHaveBeenCalled()
   consoleError.mockRestore()
 })
