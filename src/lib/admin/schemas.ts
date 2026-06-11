@@ -5,6 +5,19 @@ import { z } from 'zod'
  * can be imported by unit tests without dragging in the tRPC/auth runtime.
  */
 
+/**
+ * `z.string().url()` ne filtre PAS le scheme (vérifié à l'audit : un
+ * `javascript:alert(1)` passe) — le refine borne aux liens http(s), rendus
+ * en <a href> côté employé.
+ */
+const sharepointUrlSchema = z
+  .string()
+  .url()
+  .refine((u) => /^https?:\/\//i.test(u), 'URL http(s) requise')
+
+/** Borne le coût argon2 (le hash d'une entrée de plusieurs Mo bloque le worker). */
+const passwordSchema = z.string().min(8).max(128)
+
 /** Input schema for `admin.stores.update`. */
 export const storeUpdateSchema = z.object({
   id: z.string().uuid(),
@@ -28,7 +41,7 @@ export const formationFields = {
   icon: z.string(),
   description: z.string(),
   kind: z.enum(['sharepoint', 'pdf']),
-  sharepointUrl: z.string().url().nullable().optional(),
+  sharepointUrl: sharepointUrlSchema.nullable().optional(),
   docCount: z.number().int().min(0).default(0),
   order: z.number().int().default(0),
 }
@@ -43,7 +56,7 @@ export const formationUpdateSchema = z.object({
   icon: z.string().optional(),
   description: z.string().optional(),
   kind: z.enum(['sharepoint', 'pdf']).optional(),
-  sharepointUrl: z.string().url().nullable().optional(),
+  sharepointUrl: sharepointUrlSchema.nullable().optional(),
   docCount: z.number().int().min(0).optional(),
   order: z.number().int().optional(),
 })
@@ -51,7 +64,7 @@ export const formationUpdateSchema = z.object({
 export const userCreateSchema = z.object({
   email: z.string().email(),
   firstName: z.string().min(1),
-  password: z.string().min(8),
+  password: passwordSchema,
   role: z.enum(['employee', 'admin']),
   storeId: z.string().uuid().nullable().optional(),
 })
@@ -61,7 +74,7 @@ export const userUpdateSchema = z.object({
   firstName: z.string().min(1).optional(),
   role: z.enum(['employee', 'admin']).optional(),
   storeId: z.string().uuid().nullable().optional(),
-  password: z.string().min(8).optional(),
+  password: passwordSchema.optional(),
 })
 
 /** Input schema for `admin.news.create`. */

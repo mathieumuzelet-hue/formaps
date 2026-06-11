@@ -58,6 +58,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ docId: s
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `${wantsDownload ? 'attachment' : 'inline'}; filename="${safeName}.pdf"`,
+      // Document authentifié : jamais en cache partagé ni sur disque proxy.
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
     },
   })
 }

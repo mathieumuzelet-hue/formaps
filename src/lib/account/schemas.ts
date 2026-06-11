@@ -7,6 +7,7 @@ import { z } from 'zod'
 
 /** Input schema for `account.changePassword`. */
 export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1),
-  newPassword: z.string().min(8),
+  // .max(128) borne l'entrée argon2 (vérif ET hash) — voir admin/schemas.ts.
+  currentPassword: z.string().min(1).max(128),
+  newPassword: z.string().min(8).max(128),
 })

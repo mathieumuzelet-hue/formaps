@@ -16,6 +16,14 @@ test('prepareUserInsert sets passwordHash and drops the plaintext password', () 
   expect(obj.storeId).toBe(UUID)
 })
 
+test('prepareUserInsert normalizes the email (trim + lowercase)', () => {
+  const insert = prepareUserInsert(
+    { email: '  Camille@APS.fr ', firstName: 'Camille', role: 'employee', storeId: null },
+    'hash',
+  )
+  expect(insert.email).toBe('camille@aps.fr')
+})
+
 test('prepareUserInsert defaults storeId to null when absent', () => {
   const obj = prepareUserInsert(
     { email: 'a@b.fr', firstName: 'Léa', role: 'employee' },

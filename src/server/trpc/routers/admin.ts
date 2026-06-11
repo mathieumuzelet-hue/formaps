@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { asc, desc, eq, like, max } from 'drizzle-orm'
+import { asc, count, desc, eq, like, max } from 'drizzle-orm'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
@@ -62,20 +62,34 @@ const storesRouter = router({
   }),
 
   create: adminProcedure.input(storeCreateSchema).mutation(async ({ ctx, input }) => {
-    const [row] = await ctx.db.insert(stores).values(input).returning()
-    return row
+    try {
+      const [row] = await ctx.db.insert(stores).values(input).returning()
+      return row
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'Nom de magasin déjà utilisé' })
+      }
+      throw err
+    }
   }),
 
   update: adminProcedure.input(storeUpdateSchema).mutation(async ({ ctx, input }) => {
     const { id, ...fields } = input
-    const [row] = await ctx.db
-      .update(stores)
-      .set({ ...fields, updatedAt: new Date() })
-      .where(eq(stores.id, id))
-      .returning()
+    try {
+      const [row] = await ctx.db
+        .update(stores)
+        .set({ ...fields, updatedAt: new Date() })
+        .where(eq(stores.id, id))
+        .returning()
 
-    if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
-    return row
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      return row
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'Nom de magasin déjà utilisé' })
+      }
+      throw err
+    }
   }),
 
   /**
@@ -215,6 +229,36 @@ const usersRouter = router({
   update: adminProcedure.input(userUpdateSchema).mutation(async ({ ctx, input }) => {
     const { id, password, ...rest } = input
 
+    if (rest.role === 'employee') {
+      if (id === ctx.user.id) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Impossible de se rétrograder soi-même',
+        })
+      }
+      const [target] = await ctx.db
+        .select({ role: users.role })
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1)
+      if (target?.role === 'admin') {
+        // Fenêtre de course admin↔admin assumée sans transaction : deux demotes
+        // strictement simultanés sont irréalistes sur ce produit interne.
+        // Et même dans ce cas, la situation est récupérable : bootstrap-admin.mjs
+        // est promotion-only et re-promeut l'admin bootstrap à chaque boot.
+        const [admins] = await ctx.db
+          .select({ n: count() })
+          .from(users)
+          .where(eq(users.role, 'admin'))
+        if ((admins?.n ?? 0) <= 1) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Il doit rester au moins un administrateur',
+          })
+        }
+      }
+    }
+
     const fields: Record<string, unknown> = { ...rest, updatedAt: new Date() }
     if (password !== undefined) {
       fields.passwordHash = await hashPassword(password)
@@ -288,7 +332,7 @@ const usersRouter = router({
 
       try {
         await ctx.db.insert(users).values(insert)
-        created.push({ row, email: data.email, firstName: data.firstName, password })
+        created.push({ row, email: insert.email, firstName: data.firstName, password })
       } catch (err) {
         if (isUniqueViolation(err)) {
           allErrors.push({ row, message: `Email déjà utilisé : ${data.email}` })

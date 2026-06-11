@@ -74,6 +74,15 @@ test('?download=1 force le téléchargement (attachment)', async () => {
   )
 })
 
+test('sert les PDF avec Cache-Control private no-store et nosniff', async () => {
+  auth.mockResolvedValue({ user: { id: 'u1' } })
+  selectLimit.mockResolvedValue([{ title: 'Guide Mercalys' }])
+  const res = await GET(makeRequest(), { params })
+  expect(res.status).toBe(200)
+  expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+  expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
+})
+
 test('une consultation enregistre une vue (user, document)', async () => {
   auth.mockResolvedValue({ user: { id: 'u1' } })
   selectLimit.mockResolvedValue([{ title: 'Guide Mercalys' }])

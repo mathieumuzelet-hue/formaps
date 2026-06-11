@@ -57,8 +57,12 @@ d'alimenter la page admin « Trous FAQ ». Ce texte libre peut contenir des
 **données personnelles** (saisie par un utilisateur identifiable).
 
 - **Durée de rétention cible : 12 mois maximum.**
-- La purge **n'est pas encore automatisée** — à exécuter manuellement (ou via un
-  cron à mettre en place) directement sur la base :
+- La purge est **automatisée depuis la PR sécurité (2026-06-11)** : au boot du
+  conteneur web puis toutes les 24 h (`src/instrumentation.ts` →
+  `src/server/jobs/purge-chat-queries.ts`). Rétention configurable via
+  `CHAT_QUERIES_RETENTION_MONTHS` (défaut 12 mois).
+- Filet manuel si besoin (mêmes effets que le job, adapter l'intervalle si
+  `CHAT_QUERIES_RETENTION_MONTHS` ≠ 12) :
 
 ```sql
 DELETE FROM chat_queries WHERE created_at < now() - interval '12 months';

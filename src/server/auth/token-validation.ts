@@ -31,28 +31,42 @@ export function isTokenStale(tokenValue: number | undefined, dbValue: Date | nul
   return tokenValue !== dbValue.getTime()
 }
 
+export type FreshnessResult =
+  | { status: 'stale' }
+  | { status: 'fresh'; claims?: { role: 'employee' | 'admin'; storeId: string | null } }
+
 /**
- * Reads the user's current passwordChangedAt and compares it to the token's
- * claim. DB errors fail OPEN ('fresh') so a transient Postgres outage never
+ * Reads the user's current passwordChangedAt (staleness check) AND role/storeId
+ * (claim refresh — a demoted admin loses the console at the NEXT request, not
+ * at re-login) in the same single SELECT. DB errors fail OPEN ('fresh', no
+ * claims → existing token claims are kept) so a transient Postgres outage never
  * logs the whole portal out — the check is a hardening layer, not the primary
  * authentication (the JWT signature is).
  */
 export async function validatePasswordFreshness(
   token: FreshnessToken,
   dbClient: Db,
-): Promise<'fresh' | 'stale'> {
-  if (!token.sub) return 'stale'
+): Promise<FreshnessResult> {
+  if (!token.sub) return { status: 'stale' }
   try {
     const [row] = await dbClient
-      .select({ passwordChangedAt: users.passwordChangedAt })
+      .select({
+        passwordChangedAt: users.passwordChangedAt,
+        role: users.role,
+        storeId: users.storeId,
+      })
       .from(users)
       .where(eq(users.id, token.sub))
       .limit(1)
-    return isTokenStale(token.passwordChangedAt, row?.passwordChangedAt ?? null)
-      ? 'stale'
-      : 'fresh'
+    // Row absente → stale, géré par le garde lui-même (l'ancien code passait
+    // par la branche dbValue === null d'isTokenStale) ; après ce garde, row
+    // est nécessairement définie.
+    if (!row || isTokenStale(token.passwordChangedAt, row.passwordChangedAt)) {
+      return { status: 'stale' }
+    }
+    return { status: 'fresh', claims: { role: row.role, storeId: row.storeId } }
   } catch (err) {
     console.error('[auth] vérification passwordChangedAt a échoué (fail-open):', err)
-    return 'fresh'
+    return { status: 'fresh' }
   }
 }

@@ -4,6 +4,8 @@ import superjson from 'superjson'
 import { auth } from '@/server/auth'
 import { db } from '@/server/db'
 
+import { maskInternalErrorMessage } from './error-format'
+
 /**
  * Build the per-request tRPC context. Resolves the Auth.js session (Node
  * runtime — touches the JWT/cookies) and exposes the Drizzle `db` handle.
@@ -21,7 +23,16 @@ export async function createTRPCContext(_opts: { headers: Headers }) {
 
 type Context = Awaited<ReturnType<typeof createTRPCContext>>
 
-const t = initTRPC.context<Context>().create({ transformer: superjson })
+const t = initTRPC.context<Context>().create({
+  transformer: superjson,
+  errorFormatter({ shape, error }) {
+    if (shape.data.code === 'INTERNAL_SERVER_ERROR') {
+      // Le détail reste visible côté serveur (logs Dokploy), jamais côté client.
+      console.error('[trpc] erreur interne masquée au client:', error)
+    }
+    return maskInternalErrorMessage(shape)
+  },
+})
 
 export const router = t.router
 export const createCallerFactory = t.createCallerFactory

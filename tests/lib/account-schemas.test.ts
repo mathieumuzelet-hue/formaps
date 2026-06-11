@@ -28,3 +28,21 @@ test('rejette un mdp actuel vide', () => {
     }).success,
   ).toBe(false)
 })
+
+test('rejette un nouveau mdp de plus de 128 caractères', () => {
+  expect(
+    changePasswordSchema.safeParse({
+      currentPassword: 'ancien123',
+      newPassword: 'x'.repeat(129),
+    }).success,
+  ).toBe(false)
+})
+
+test('rejette un mdp actuel de plus de 128 caractères (borne entrée argon2)', () => {
+  expect(
+    changePasswordSchema.safeParse({
+      currentPassword: 'x'.repeat(129),
+      newPassword: 'nouveau-mdp-1',
+    }).success,
+  ).toBe(false)
+})
