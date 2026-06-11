@@ -38,7 +38,8 @@ export function recordLoginFailure(key: string, now: number = Date.now()): void 
   if (failures.size >= SWEEP_THRESHOLD) {
     for (const k of [...failures.keys()]) liveTimestamps(k, now)
   }
-  failures.set(key, [...liveTimestamps(key, now), now])
+  // Cap : seuls les LOGIN_MAX_FAILURES plus récents comptent (mémoire bornée même si l'appelant record en étant déjà limité).
+  failures.set(key, [...liveTimestamps(key, now), now].slice(-LOGIN_MAX_FAILURES))
 }
 
 /** À appeler sur login réussi. */

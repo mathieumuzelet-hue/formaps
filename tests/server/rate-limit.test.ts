@@ -51,6 +51,18 @@ describe('login rate limiter', () => {
     expect(isRateLimited(loginRateLimitKey('203.0.113.7', 'autre@aps.fr'), T0 + 1000)).toBe(false)
   })
 
+  // Documents the capped semantics (memory bound) rather than strictly proving
+  // it red/green: blocking behavior is unchanged by the cap; only the most
+  // recent LOGIN_MAX_FAILURES timestamps are retained per key.
+  it('caps stored timestamps per key at LOGIN_MAX_FAILURES (memory bound)', () => {
+    for (let i = 0; i < LOGIN_MAX_FAILURES * 4; i++) recordLoginFailure(KEY, T0 + i)
+    // Still blocked...
+    expect(isRateLimited(KEY, T0 + 1000)).toBe(true)
+    // ...but only the most recent LOGIN_MAX_FAILURES survive: once the window
+    // has passed relative to the LAST failure, the key is fully clean.
+    expect(isRateLimited(KEY, T0 + LOGIN_MAX_FAILURES * 4 + LOGIN_WINDOW_MS)).toBe(false)
+  })
+
   it('a failure outside the window does not count toward the threshold', () => {
     recordLoginFailure(KEY, T0)
     for (let i = 0; i < LOGIN_MAX_FAILURES - 1; i++) {
