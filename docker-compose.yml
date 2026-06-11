@@ -89,6 +89,8 @@ services:
       BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
       BACKUP_S3_ACCESS_KEY: ${BACKUP_S3_ACCESS_KEY:-}
       BACKUP_S3_SECRET: ${BACKUP_S3_SECRET:-}
+      # Période entre deux backups en secondes (vide → défaut 86400 = 24 h).
+      BACKUP_INTERVAL_S: ${BACKUP_INTERVAL_S:-}
     volumes:
       # Lecture seule : le sidecar n'écrit jamais dans les uploads.
       - cockpit_uploads:/uploads:ro

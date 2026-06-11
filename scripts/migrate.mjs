@@ -8,8 +8,12 @@ if (!url) {
   process.exit(1)
 }
 
-const RETRIES = Number(process.env.MIGRATE_RETRIES || 5)
-const DELAY_MS = Number(process.env.MIGRATE_RETRY_DELAY_MS || 3000)
+// Envs de debug : une valeur non numérique retombe sur le défaut (NaN ferait
+// zéro tentative et un message « après NaN tentatives »).
+const rawRetries = Number(process.env.MIGRATE_RETRIES || 5)
+const RETRIES = Number.isFinite(rawRetries) && rawRetries >= 1 ? Math.floor(rawRetries) : 5
+const rawDelay = Number(process.env.MIGRATE_RETRY_DELAY_MS || 3000)
+const DELAY_MS = Number.isFinite(rawDelay) && rawDelay >= 0 ? rawDelay : 3000
 // Clé arbitraire constante du projet : sérialise les migrations entre containers.
 const LOCK_KEY = 727274440
 
