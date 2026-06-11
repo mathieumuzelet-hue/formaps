@@ -35,6 +35,8 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Seuil de pertinence FAQ-gaps (vide → défaut 0.5 dans le code).
       FAQ_RELEVANCE_THRESHOLD: ${FAQ_RELEVANCE_THRESHOLD:-}
+      # Rétention RGPD de chat_queries en mois (vide → défaut 12 dans le code).
+      CHAT_QUERIES_RETENTION_MONTHS: ${CHAT_QUERIES_RETENTION_MONTHS:-}
       # Bootstrap admin (idempotent au boot) — DOIT être mappé ici pour atteindre
       # le conteneur ; les variables Dokploy ne servent qu'à l'interpolation compose.
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
