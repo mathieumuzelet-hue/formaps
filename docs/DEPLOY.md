@@ -61,7 +61,8 @@ d'alimenter la page admin « Trous FAQ ». Ce texte libre peut contenir des
   conteneur web puis toutes les 24 h (`src/instrumentation.ts` →
   `src/server/jobs/purge-chat-queries.ts`). Rétention configurable via
   `CHAT_QUERIES_RETENTION_MONTHS` (défaut 12 mois).
-- Filet manuel si besoin (mêmes effets que le job) :
+- Filet manuel si besoin (mêmes effets que le job, adapter l'intervalle si
+  `CHAT_QUERIES_RETENTION_MONTHS` ≠ 12) :
 
 ```sql
 DELETE FROM chat_queries WHERE created_at < now() - interval '12 months';

@@ -32,6 +32,9 @@ export function retentionMonths(
 
 export function retentionCutoff(months: number, now: Date = new Date()): Date {
   const cutoff = new Date(now)
+  // setMonth peut déborder en fin de mois (ex. 31 mars − 1 mois → 3 mars) :
+  // sur-suppression bornée à ≤ 3 jours, soit le sens CONFORME pour une
+  // rétention « 12 mois maximum ». Ne pas « corriger » dans l'autre sens.
   cutoff.setMonth(cutoff.getMonth() - months)
   return cutoff
 }
@@ -56,8 +59,9 @@ export function startChatQueriesPurgeJob(dbClient: Db): void {
   started = true
   const run = async () => {
     try {
-      const n = await purgeChatQueries(dbClient)
-      console.log(`[rgpd] purge chat_queries : ${n} ligne(s) supprimée(s)`)
+      const months = retentionMonths()
+      const n = await purgeChatQueries(dbClient, months)
+      console.log(`[rgpd] purge chat_queries : ${n} ligne(s) supprimée(s) (rétention ${months} mois)`)
     } catch (err) {
       console.error('[rgpd] purge chat_queries échouée (retentée au prochain cycle) :', err)
     }
