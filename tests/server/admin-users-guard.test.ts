@@ -116,4 +116,16 @@ describe('admin.users.update — garde dernier admin', () => {
     expect(dbSelect).not.toHaveBeenCalled()
     expect(selectWhere).not.toHaveBeenCalled()
   })
+
+  it("une promotion vers admin n'est pas gardée (aucune requête de garde)", async () => {
+    updateReturning.mockResolvedValue([
+      { id: EMP_1, email: 'e1@b.fr', firstName: 'Emp', role: 'admin', storeId: null },
+    ])
+
+    const result = await caller().users.update({ id: EMP_1, role: 'admin' })
+    expect(result).toMatchObject({ id: EMP_1, role: 'admin' })
+    // Promotion path: no guard queries at all.
+    expect(dbSelect).not.toHaveBeenCalled()
+    expect(selectWhere).not.toHaveBeenCalled()
+  })
 })

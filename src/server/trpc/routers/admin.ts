@@ -233,7 +233,7 @@ const usersRouter = router({
       if (id === ctx.user.id) {
         throw new TRPCError({
           code: 'FORBIDDEN',
-          message: 'Impossible de se rétrograder soi-même.',
+          message: 'Impossible de se rétrograder soi-même',
         })
       }
       const [target] = await ctx.db
@@ -244,6 +244,8 @@ const usersRouter = router({
       if (target?.role === 'admin') {
         // Fenêtre de course admin↔admin assumée sans transaction : deux demotes
         // strictement simultanés sont irréalistes sur ce produit interne.
+        // Et même dans ce cas, la situation est récupérable : bootstrap-admin.mjs
+        // est promotion-only et re-promeut l'admin bootstrap à chaque boot.
         const [admins] = await ctx.db
           .select({ n: count() })
           .from(users)
@@ -251,7 +253,7 @@ const usersRouter = router({
         if ((admins?.n ?? 0) <= 1) {
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: 'Il doit rester au moins un administrateur.',
+            message: 'Il doit rester au moins un administrateur',
           })
         }
       }
