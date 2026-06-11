@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, integer, date, timestamp, boolean, pgEnum, unique, real, index, primaryKey, jsonb } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, integer, date, timestamp, boolean, pgEnum, unique, real, index, uniqueIndex, primaryKey, jsonb } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 
 import type { FaqItem } from '@/lib/faq/types'
 
@@ -9,7 +10,7 @@ export const newsStatusEnum = pgEnum('news_status', ['draft', 'published'])
 
 export const stores = pgTable('stores', {
   id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
+  name: text('name').notNull().unique(),
   basculeDate: date('bascule_date').notNull(),
   currentStep: integer('current_step').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -29,7 +30,10 @@ export const users = pgTable('users', {
   difyConversationId: text('dify_conversation_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+}, (t) => ({
+  // Défense en profondeur : l'app normalise (normalizeEmail), Postgres verrouille.
+  emailLowerIdx: uniqueIndex('users_email_lower_idx').on(sql`lower(${t.email})`),
+}))
 
 export const formations = pgTable('formations', {
   id: uuid('id').primaryKey().defaultRandom(),
