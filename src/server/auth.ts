@@ -118,7 +118,10 @@ export const nodeJwtCallback: JwtCallback = async (params) => {
   }
   // Réécrit les claims avec les valeurs DB fraîches : une rétrogradation ou un
   // changement de magasin prend effet à la requête suivante. Fail-open (pas de
-  // claims) ⇒ on garde les claims existants du token.
+  // claims) ⇒ on garde les claims existants du token. Le cookie décodé côté
+  // Edge peut être en retard (le middleware ne vérifie que la signature) ;
+  // chaque contrôle admin faisant autorité est Node-side (layout admin,
+  // adminProcedure, handlers /api/admin) et voit les claims réécrits.
   if (freshness.claims) {
     params.token.role = freshness.claims.role
     params.token.storeId = freshness.claims.storeId

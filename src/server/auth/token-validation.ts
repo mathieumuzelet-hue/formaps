@@ -58,8 +58,9 @@ export async function validatePasswordFreshness(
       .from(users)
       .where(eq(users.id, token.sub))
       .limit(1)
-    // isTokenStale renvoie stale quand la row est absente : après ce garde,
-    // row est nécessairement définie.
+    // Row absente → stale, géré par le garde lui-même (l'ancien code passait
+    // par la branche dbValue === null d'isTokenStale) ; après ce garde, row
+    // est nécessairement définie.
     if (!row || isTokenStale(token.passwordChangedAt, row.passwordChangedAt)) {
       return { status: 'stale' }
     }

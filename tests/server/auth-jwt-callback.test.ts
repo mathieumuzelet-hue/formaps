@@ -68,6 +68,16 @@ test('lecture : role et storeId réécrits depuis les claims DB frais', async ()
   expect(token).toMatchObject({ role: 'employee', storeId: 'store-2' })
 })
 
+test('rewrites storeId to null when the user loses their store', async () => {
+  // La DB porte storeId null (rôle inchangé) alors que le token en a encore un :
+  // la perte d'affectation magasin doit se propager à la requête suivante.
+  selectLimit.mockResolvedValue([{ passwordChangedAt: NOW, role: 'employee', storeId: null }])
+  const token = await nodeJwtCallback({
+    token: { sub: 'u1', passwordChangedAt: NOW.getTime(), role: 'employee', storeId: 'store-1' },
+  } as never)
+  expect(token).toMatchObject({ storeId: null })
+})
+
 test('lecture : mot de passe changé depuis → null (session tuée)', async () => {
   selectLimit.mockResolvedValue([
     { passwordChangedAt: new Date('2026-06-02T08:00:00Z'), role: 'employee', storeId: null },
