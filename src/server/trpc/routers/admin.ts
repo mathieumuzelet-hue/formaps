@@ -288,7 +288,7 @@ const usersRouter = router({
 
       try {
         await ctx.db.insert(users).values(insert)
-        created.push({ row, email: data.email, firstName: data.firstName, password })
+        created.push({ row, email: insert.email, firstName: data.firstName, password })
       } catch (err) {
         if (isUniqueViolation(err)) {
           allErrors.push({ row, message: `Email déjà utilisé : ${data.email}` })
