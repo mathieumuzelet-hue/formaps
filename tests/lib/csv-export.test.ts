@@ -43,3 +43,13 @@ test('toCredentialsCsv: empty list yields header only', () => {
   const csv = toCredentialsCsv([])
   expect(csv).toBe(`${BOM}email;mot_de_passe`)
 })
+
+test("toCredentialsCsv: neutralise un email commençant par = (guard formule)", () => {
+  const csv = toCredentialsCsv([{ email: '=evil@x.fr', password: 'Pass1234' }])
+  expect(csv).toContain(`'=evil@x.fr;Pass1234`)
+})
+
+test('toCredentialsCsv: quote une cellule contenant le délimiteur', () => {
+  const csv = toCredentialsCsv([{ email: 'a;b@x.fr', password: 'Pass1234' }])
+  expect(csv).toContain('"a;b@x.fr";Pass1234')
+})
