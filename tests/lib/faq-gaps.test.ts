@@ -49,6 +49,16 @@ test('groupFaqGaps : à fréquence égale, le plus récent en premier', () => {
   expect(groups.map((g) => g.question)).toEqual(['récente', 'ancienne'])
 })
 
+const groupWith = (over: Partial<Parameters<typeof buildFaqGapsCsv>[0][number]>) => ({
+  question: 'q',
+  count: 1,
+  lastAskedAt: new Date('2026-06-03T10:00:00Z'),
+  scoreMax: null,
+  retrievalCount: 0,
+  dislikes: 0,
+  ...over,
+})
+
 test('buildFaqGapsCsv : BOM + en-tête + lignes ; score vide si null', () => {
   const csv = buildFaqGapsCsv([
     { question: 'Caisse ?', count: 2, lastAskedAt: new Date('2026-06-03T10:00:00Z'), scoreMax: 0.4, retrievalCount: 2, dislikes: 1 },
@@ -59,4 +69,20 @@ test('buildFaqGapsCsv : BOM + en-tête + lignes ; score vide si null', () => {
   expect(lines[0].endsWith('question;occurrences;derniere_date;score_max;nb_sources;dislikes')).toBe(true)
   expect(lines[1]).toBe('Caisse ?;2;2026-06-03;0.40;2;1')
   expect(lines[2]).toBe('Clôture ?;1;2026-06-02;;0;0')
+})
+
+test('buildFaqGapsCsv : quote une question multi-lignes en une seule cellule valide', () => {
+  const csv = buildFaqGapsCsv([groupWith({ question: 'ligne1\nligne2' })])
+  expect(csv).toContain('"ligne1\nligne2";')
+})
+
+test('buildFaqGapsCsv : conserve un ; dans la question (cellule quotée, plus de virgule de substitution)', () => {
+  const csv = buildFaqGapsCsv([groupWith({ question: 'avant;après' })])
+  expect(csv).toContain('"avant;après";')
+  expect(csv).not.toContain('avant,après')
+})
+
+test('buildFaqGapsCsv : neutralise une question commençant par = (injection formule)', () => {
+  const csv = buildFaqGapsCsv([groupWith({ question: '=HYPERLINK("http://evil")' })])
+  expect(csv).toContain(`'=HYPERLINK`)
 })

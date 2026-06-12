@@ -1,6 +1,6 @@
 /**
  * Briques CSV partagées par tous les exports DESTINÉS À UN HUMAIN (credentials,
- * modèles, FAQ-gaps). L'export FAQ Builder → Dify (src/lib/faq/csv.ts) ne passe
+ * modèles, FAQ-gaps). L'export FAQ Builder → Dify (src/lib/admin/faq-csv.ts) ne passe
  * PAS par ici : c'est de l'ingestion machine, un guard formule corromprait les
  * Q&A (décision PR #12).
  */
