@@ -13,6 +13,7 @@ import { generatePassword } from '@/server/auth/generate-password'
 import { prepareUserInsert } from '@/lib/admin/prepare-user'
 import { stripPassword } from '@/lib/admin/sanitize-user'
 import {
+  MAX_IMPORT_ROWS,
   normalizeHeader,
   parseStoreRows,
   parseUserRows,
@@ -53,7 +54,7 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 /** Input shape for bulk-import mutations: parsed CSV rows (string→string maps). */
-const bulkImportSchema = z.array(z.record(z.string(), z.string())).max(2000)
+const bulkImportSchema = z.array(z.record(z.string(), z.string())).max(MAX_IMPORT_ROWS)
 
 const storesRouter = router({
   /** All stores ordered by name. */

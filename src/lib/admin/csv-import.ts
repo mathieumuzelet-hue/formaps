@@ -124,6 +124,35 @@ export function parseUserRows(records: Array<Record<string, string>>): {
   return { valid, errors }
 }
 
+/** Cap d'un import en masse : ~200 hash argon2 × ~200 ms restent sous les
+ *  timeouts proxy ; au-delà, demander de scinder le fichier. Partagé avec le
+ *  schéma zod serveur (bulkImportSchema). */
+export const MAX_IMPORT_ROWS = 200
+
+/**
+ * Nettoie la sortie papaparse avant envoi : retire `__parsed_extra` (ajouté dès
+ * qu'une ligne a une colonne de plus que le header ; sa valeur string[] ferait
+ * rejeter TOUT l'import par le z.record serveur) et applique le cap de taille.
+ */
+export function sanitizeParsedRows(
+  parsed: Array<Record<string, unknown>>,
+): { rows: Array<Record<string, string>> } | { error: string } {
+  if (parsed.length > MAX_IMPORT_ROWS) {
+    return {
+      error: `Le fichier dépasse ${MAX_IMPORT_ROWS} lignes (${parsed.length}) — le scinder en plusieurs imports.`,
+    }
+  }
+  const rows = parsed.map((record) => {
+    const out: Record<string, string> = {}
+    for (const [key, value] of Object.entries(record)) {
+      if (key === '__parsed_extra') continue
+      if (typeof value === 'string') out[key] = value
+    }
+    return out
+  })
+  return { rows }
+}
+
 /**
  * Resolve a store name (as written in the CSV) to a store id using a map keyed
  * by the normalized store name. Returns `undefined` when not found. Kept pure so

@@ -5,10 +5,10 @@
  * header/BOM/delimiter contract is unit-testable.
  */
 
-/** UTF-8 byte-order mark so Excel opens accented CSVs with the right encoding. */
-export const BOM = '﻿'
+import { BOM, DELIMITER, csvCell } from '@/lib/csv'
 
-const DELIMITER = ';'
+// Re-export for the tests importing BOM from here.
+export { BOM } from '@/lib/csv'
 
 export type ImportKind = 'stores' | 'users'
 
@@ -31,7 +31,7 @@ const TEMPLATES: Record<ImportKind, Template> = {
  */
 export function buildTemplateCsv(kind: ImportKind): string {
   const { header, example } = TEMPLATES[kind]
-  const lines = [header.join(DELIMITER), example.join(DELIMITER)]
+  const lines = [header.map(csvCell).join(DELIMITER), example.map(csvCell).join(DELIMITER)]
   return BOM + lines.join('\n')
 }
 
@@ -44,7 +44,7 @@ export function toCredentialsCsv(
 ): string {
   const lines = ['email;mot_de_passe']
   for (const { email, password } of created) {
-    lines.push(`${email}${DELIMITER}${password}`)
+    lines.push(`${csvCell(email)}${DELIMITER}${csvCell(password)}`)
   }
   return BOM + lines.join('\n')
 }

@@ -3,7 +3,7 @@
  * with aggregates, and CSV export. No I/O — the admin router feeds rows in.
  */
 
-import { BOM } from '@/lib/admin/csv-export'
+import { BOM, DELIMITER, csvCell } from '@/lib/csv'
 
 export type FaqGapRow = {
   query: string
@@ -70,15 +70,16 @@ export function groupFaqGaps(rows: FaqGapRow[]): FaqGapGroup[] {
   )
 }
 
-/** `;`-delimited CSV with BOM (Excel-friendly), same contract as csv-export. */
+/** CSV `;` + BOM (Excel) ; cellules passées par csvCell (quoting RFC 4180 +
+ *  guard formule — les questions viennent des salariés, contenu cross-user). */
 export function buildFaqGapsCsv(groups: FaqGapGroup[]): string {
   const lines = ['question;occurrences;derniere_date;score_max;nb_sources;dislikes']
   for (const g of groups) {
     const date = g.lastAskedAt.toISOString().slice(0, 10)
     const score = g.scoreMax === null ? '' : g.scoreMax.toFixed(2)
-    // Le séparateur `;` dans une question est remplacé pour ne pas casser les colonnes.
-    const question = g.question.replace(/;/g, ',')
-    lines.push(`${question};${g.count};${date};${score};${g.retrievalCount};${g.dislikes}`)
+    lines.push(
+      [csvCell(g.question), g.count, date, score, g.retrievalCount, g.dislikes].join(DELIMITER),
+    )
   }
   return BOM + lines.join('\n')
 }
