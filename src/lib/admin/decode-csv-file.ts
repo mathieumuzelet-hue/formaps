@@ -11,7 +11,11 @@ export function decodeCsvBytes(bytes: Uint8Array): string {
     // nativement le BOM UTF-8.
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
   } catch {
-    return new TextDecoder('windows-1252').decode(bytes)
+    // Défense en profondeur : un fichier avec BOM UTF-8 mais des octets
+    // invalides plus loin retomberait ici et leakerait « ï»¿ » dans le header.
+    const noBom =
+      bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? bytes.subarray(3) : bytes
+    return new TextDecoder('windows-1252').decode(noBom)
   }
 }
 

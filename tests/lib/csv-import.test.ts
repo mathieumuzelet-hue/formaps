@@ -1,4 +1,11 @@
-import { normalizeHeader, parseStoreRows, parseUserRows, resolveStoreId } from '@/lib/admin/csv-import'
+import {
+  MAX_IMPORT_ROWS,
+  normalizeHeader,
+  parseStoreRows,
+  parseUserRows,
+  resolveStoreId,
+  sanitizeParsedRows,
+} from '@/lib/admin/csv-import'
 import { expect, test } from 'vitest'
 
 test('normalizeHeader: lowercase, strip accents, collapse spaces', () => {
@@ -130,4 +137,33 @@ test('resolveStoreId: resolves by normalized name (accents/case tolerant)', () =
 test('resolveStoreId: unknown name → undefined', () => {
   const map = new Map([['lille', 's1']])
   expect(resolveStoreId(map, 'Paris')).toBeUndefined()
+})
+
+// --- sanitizeParsedRows ---
+
+test('sanitizeParsedRows: strip __parsed_extra (colonne en trop) et garde les colonnes connues', () => {
+  const result = sanitizeParsedRows([
+    { email: 'a@aps.fr', prenom: 'A', __parsed_extra: ['x'] } as never,
+    { email: 'b@aps.fr', prenom: 'B' },
+  ])
+  expect(result).toEqual({
+    rows: [
+      { email: 'a@aps.fr', prenom: 'A' },
+      { email: 'b@aps.fr', prenom: 'B' },
+    ],
+  })
+})
+
+test('sanitizeParsedRows: rejette un fichier de plus de MAX_IMPORT_ROWS lignes avec un message actionnable', () => {
+  const rows = Array.from({ length: MAX_IMPORT_ROWS + 1 }, (_, i) => ({
+    email: `u${i}@aps.fr`,
+  }))
+  const result = sanitizeParsedRows(rows)
+  expect('error' in result && result.error).toMatch(/200 lignes/)
+})
+
+test('sanitizeParsedRows: accepte exactement MAX_IMPORT_ROWS lignes', () => {
+  const rows = Array.from({ length: MAX_IMPORT_ROWS }, (_, i) => ({ email: `u${i}@aps.fr` }))
+  const result = sanitizeParsedRows(rows)
+  expect('rows' in result).toBe(true)
 })

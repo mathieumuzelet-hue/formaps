@@ -26,4 +26,10 @@ describe('decodeCsvBytes', () => {
     const bytes = enc.encode('﻿email;prenom')
     expect(decodeCsvBytes(bytes)).toBe('email;prenom')
   })
+
+  it('strip le BOM UTF-8 aussi sur le chemin de repli windows-1252', () => {
+    // BOM + « Léa » en Windows-1252 (0xE9 isolé = UTF-8 invalide → fallback)
+    const bytes = Uint8Array.from([0xef, 0xbb, 0xbf, 0x4c, 0xe9, 0x61])
+    expect(decodeCsvBytes(bytes)).toBe('Léa')
+  })
 })
