@@ -6,6 +6,8 @@ import Papa from 'papaparse'
 import { trpc } from '@/lib/trpc/client'
 import { Icon } from '@/components/ui/Icon'
 import { buildTemplateCsv, toCredentialsCsv } from '@/lib/admin/csv-export'
+import { sanitizeParsedRows } from '@/lib/admin/csv-import'
+import { decodeCsvFile } from '@/lib/admin/decode-csv-file'
 import { downloadCsv } from '@/lib/admin/download-csv'
 
 type RowError = { row: number; message: string }
@@ -50,6 +52,43 @@ function Legend({ columns, note }: { columns: ColumnDef[]; note?: string }) {
       {note && <p className="mt-3 text-[12.5px] leading-snug text-sub">{note}</p>}
     </div>
   )
+}
+
+/**
+ * Décode (UTF-8 → fallback 1252), parse, nettoie (__parsed_extra, cap) puis
+ * remet les lignes au caller. Toute erreur passe par onError (message FR).
+ * NB : Papa.parse sur une STRING est synchrone — `complete` est appelé avant
+ * le retour de `parse` ; le flux async environnant reste correct.
+ */
+async function parseCsv(
+  file: File,
+  onRows: (rows: Array<Record<string, string>>) => void,
+  onError: (message: string) => void,
+) {
+  let text: string
+  try {
+    text = await decodeCsvFile(file)
+  } catch {
+    onError('Le fichier est vide ou illisible.')
+    return
+  }
+  Papa.parse<Record<string, string>>(text, {
+    header: true,
+    skipEmptyLines: true,
+    complete: (res) => {
+      if (!res.data || res.data.length === 0) {
+        onError('Le fichier est vide ou illisible.')
+        return
+      }
+      const sanitized = sanitizeParsedRows(res.data)
+      if ('error' in sanitized) {
+        onError(sanitized.error)
+        return
+      }
+      onRows(sanitized.rows)
+    },
+    error: () => onError('Le fichier est vide ou illisible.'),
+  })
 }
 
 /**
@@ -128,22 +167,17 @@ function StoresImportCard() {
   function handleFile(file: File) {
     setParseError(null)
     setReport(null)
-    Papa.parse<Record<string, string>>(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (res) => {
+    void parseCsv(
+      file,
+      (rows) => {
         if (inputRef.current) inputRef.current.value = ''
-        if (!res.data || res.data.length === 0) {
-          setParseError('Le fichier est vide ou illisible.')
-          return
-        }
-        bulk.mutate(res.data)
+        bulk.mutate(rows)
       },
-      error: () => {
+      (message) => {
         if (inputRef.current) inputRef.current.value = ''
-        setParseError('Le fichier est vide ou illisible.')
+        setParseError(message)
       },
-    })
+    )
   }
 
   return (
@@ -208,22 +242,17 @@ function UsersImportCard() {
   function handleFile(file: File) {
     setParseError(null)
     setReport(null)
-    Papa.parse<Record<string, string>>(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (res) => {
+    void parseCsv(
+      file,
+      (rows) => {
         if (inputRef.current) inputRef.current.value = ''
-        if (!res.data || res.data.length === 0) {
-          setParseError('Le fichier est vide ou illisible.')
-          return
-        }
-        bulk.mutate(res.data)
+        bulk.mutate(rows)
       },
-      error: () => {
+      (message) => {
         if (inputRef.current) inputRef.current.value = ''
-        setParseError('Le fichier est vide ou illisible.')
+        setParseError(message)
       },
-    })
+    )
   }
 
   return (
