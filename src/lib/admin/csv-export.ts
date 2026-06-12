@@ -7,7 +7,7 @@
 
 import { BOM, DELIMITER, csvCell } from '@/lib/csv'
 
-// Re-export for existing consumers (faq-gaps.ts, tests) importing BOM from here.
+// Re-export for the tests importing BOM from here.
 export { BOM } from '@/lib/csv'
 
 export type ImportKind = 'stores' | 'users'
