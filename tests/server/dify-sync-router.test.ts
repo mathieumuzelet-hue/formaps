@@ -3,17 +3,23 @@ import { beforeEach, expect, test, vi } from 'vitest'
 vi.mock('@/server/auth', () => ({ auth: vi.fn() }))
 vi.mock('@/server/db', () => ({ db: {} }))
 
-const { createQaDocument, deleteDocument } = vi.hoisted(() => ({
+const { createQaDocument, deleteDocument, createDocumentByFile, updateDocumentByFile } = vi.hoisted(() => ({
   createQaDocument: vi.fn(),
   deleteDocument: vi.fn(),
+  createDocumentByFile: vi.fn(),
+  updateDocumentByFile: vi.fn(),
 }))
 vi.mock('@/server/dify/knowledge', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   createQaDocument,
   deleteDocument,
+  createDocumentByFile,
+  updateDocumentByFile,
 }))
 const { upsertSync, getSyncRow } = vi.hoisted(() => ({ upsertSync: vi.fn(), getSyncRow: vi.fn() }))
 vi.mock('@/server/dify/sync-store', () => ({ upsertSync, getSyncRow }))
+const { readFile } = vi.hoisted(() => ({ readFile: vi.fn() }))
+vi.mock('node:fs/promises', () => ({ default: { readFile }, readFile }))
 
 const selectWhere = vi.fn()
 const selectFrom = vi.fn(() => ({ where: selectWhere }))
@@ -76,6 +82,35 @@ test('pushFaq on client failure upserts failed and rethrows', async () => {
 test('pushFaq without DIFY_QA_DATASET_ID → PRECONDITION_FAILED', async () => {
   delete process.env.DIFY_QA_DATASET_ID
   await expect(caller().difySync.pushFaq({ draftId: DRAFT_ID })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' })
+})
+
+test('pushFormationDoc creates a file document and upserts synced', async () => {
+  process.env.DIFY_DOCS_DATASET_ID = 'docs-ds'
+  selectWhere.mockResolvedValue([{ id: DRAFT_ID, title: 'Cours' }]) // formationDocuments row
+  readFile.mockResolvedValue(Buffer.from([0x25, 0x50, 0x44, 0x46]))
+  createDocumentByFile.mockResolvedValue({ documentId: 'fdoc-1' })
+  getSyncRow.mockResolvedValue(null)
+  const out = await caller().difySync.pushFormationDoc({ docId: DRAFT_ID })
+  expect(out).toEqual({ documentId: 'fdoc-1' })
+  expect(createDocumentByFile).toHaveBeenCalledWith(
+    expect.objectContaining({ datasetId: 'docs-ds', name: expect.stringContaining('Cours') }),
+  )
+  expect(upsertSync).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ sourceType: 'formation_doc', status: 'synced', difyDocumentId: 'fdoc-1' }),
+  )
+})
+
+test('pushFormationDoc re-push uses updateDocumentByFile', async () => {
+  process.env.DIFY_DOCS_DATASET_ID = 'docs-ds'
+  selectWhere.mockResolvedValue([{ id: DRAFT_ID, title: 'Cours' }])
+  readFile.mockResolvedValue(Buffer.from([0x25]))
+  getSyncRow.mockResolvedValue({ difyDocumentId: 'old-fdoc', datasetId: 'docs-ds' })
+  await caller().difySync.pushFormationDoc({ docId: DRAFT_ID })
+  expect(updateDocumentByFile).toHaveBeenCalledWith(
+    expect.objectContaining({ documentId: 'old-fdoc', datasetId: 'docs-ds' }),
+  )
+  expect(createDocumentByFile).not.toHaveBeenCalled()
 })
 
 test('non-admin → FORBIDDEN', async () => {
