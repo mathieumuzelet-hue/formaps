@@ -18,6 +18,18 @@ const UPLOAD_ERRORS: Record<string, string> = {
   formation_not_found: 'Formation introuvable.',
 }
 
+const DIFY_STATUS_LABEL: Record<'pending' | 'synced' | 'failed', string> = {
+  pending: 'En attente',
+  synced: 'Synchronisée',
+  failed: 'Échec',
+}
+
+const DIFY_STATUS_CLASS: Record<'pending' | 'synced' | 'failed', string> = {
+  pending: 'text-faint',
+  synced: 'text-sub',
+  failed: 'text-red',
+}
+
 function uploadErrorMessage(code: string | undefined, status: number): string {
   if (code && UPLOAD_ERRORS[code]) return UPLOAD_ERRORS[code]
   if (status === 413) return UPLOAD_ERRORS.file_too_large
@@ -31,10 +43,42 @@ export function FormationDocumentsAdmin({ formationId }: { formationId: string }
 
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  // Document en cours d'envoi vers Dify (état discriminé par document, pas global).
+  const [pushingDocId, setPushingDocId] = useState<string | null>(null)
+  const [pushError, setPushError] = useState<string | null>(null)
 
   const del = trpc.admin.formations.deleteDocument.useMutation({
     onSuccess: () => utils.admin.formations.documentsByFormation.invalidate({ formationId }),
   })
+
+  const docIds = docs.data?.map((doc) => doc.id) ?? []
+  const difyStatus = trpc.admin.difySync.status.useQuery(
+    { sourceType: 'formation_doc', sourceIds: docIds },
+    { enabled: docIds.length > 0 },
+  )
+  const pushToDify = trpc.admin.difySync.pushFormationDoc.useMutation()
+
+  function pushDocToDify(docId: string) {
+    setPushError(null)
+    setPushingDocId(docId)
+    pushToDify.mutate(
+      { docId },
+      {
+        onSuccess: () => {
+          difyStatus.refetch()
+        },
+        onError: (err) => {
+          setPushError(
+            err.message === 'pdf_file_missing'
+              ? 'Fichier PDF introuvable sur le serveur.'
+              : "L'envoi vers Dify a échoué. Réessayez.",
+          )
+          difyStatus.refetch()
+        },
+        onSettled: () => setPushingDocId(null),
+      },
+    )
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -100,50 +144,81 @@ export function FormationDocumentsAdmin({ formationId }: { formationId: string }
           )}
           {docs.data && docs.data.length > 0 && (
             <ul className="divide-y divide-line">
-              {docs.data.map((doc) => (
-                <li key={doc.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-[14px] font-medium text-ink">
-                        {doc.order}. {doc.title}
-                      </span>
-                      {doc.isNew && (
-                        <span className="rounded-full bg-redsoft px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-red">
-                          Nouveau
+              {docs.data.map((doc) => {
+                const syncRow =
+                  difyStatus.data?.find((row) => row.sourceId === doc.id) ?? null
+                const isPushing = pushingDocId === doc.id
+                return (
+                  <li key={doc.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-[14px] font-medium text-ink">
+                          {doc.order}. {doc.title}
                         </span>
-                      )}
+                        {doc.isNew && (
+                          <span className="rounded-full bg-redsoft px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-red">
+                            Nouveau
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-[12.5px] text-faint">
+                        PDF · {doc.pages} pages · {doc.sizeLabel}
+                      </p>
+                      <p className="mt-0.5 text-[12px]">
+                        <span className="text-faint">Dify : </span>
+                        {syncRow ? (
+                          <span className={`font-semibold ${DIFY_STATUS_CLASS[syncRow.status]}`}>
+                            {DIFY_STATUS_LABEL[syncRow.status]}
+                            {syncRow.status === 'synced' && syncRow.syncedAt
+                              ? ` — ${new Date(syncRow.syncedAt).toLocaleString('fr-FR')}`
+                              : ''}
+                          </span>
+                        ) : (
+                          <span className="text-faint">Jamais poussée</span>
+                        )}
+                      </p>
                     </div>
-                    <p className="mt-0.5 text-[12.5px] text-faint">
-                      PDF · {doc.pages} pages · {doc.sizeLabel}
-                    </p>
-                  </div>
-                  <a
-                    href={doc.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sand/50"
-                  >
-                    Consulter
-                  </a>
-                  <button
-                    type="button"
-                    disabled={del.isPending}
-                    onClick={() => {
-                      if (window.confirm(`Supprimer « ${doc.title} » ?`)) {
-                        del.mutate({ docId: doc.id })
-                      }
-                    }}
-                    className="rounded-lg border border-redsoft px-3 py-1.5 text-[13px] font-medium text-red hover:bg-redsoft disabled:opacity-50"
-                  >
-                    Supprimer
-                  </button>
-                </li>
-              ))}
+                    <a
+                      href={doc.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sand/50"
+                    >
+                      Consulter
+                    </a>
+                    <button
+                      type="button"
+                      disabled={isPushing}
+                      onClick={() => pushDocToDify(doc.id)}
+                      className="rounded-lg bg-ink px-3 py-1.5 text-[13px] font-medium text-white disabled:opacity-50"
+                    >
+                      {isPushing ? 'Envoi…' : 'Pousser vers Dify'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={del.isPending}
+                      onClick={() => {
+                        if (window.confirm(`Supprimer « ${doc.title} » ?`)) {
+                          del.mutate({ docId: doc.id })
+                        }
+                      }}
+                      className="rounded-lg border border-redsoft px-3 py-1.5 text-[13px] font-medium text-red hover:bg-redsoft disabled:opacity-50"
+                    >
+                      Supprimer
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
           {del.isError && (
             <p className="border-t border-line px-4 py-2 text-[13px] text-red">
               {del.error.message}
+            </p>
+          )}
+          {pushError && (
+            <p role="alert" className="border-t border-line px-4 py-2 text-[13px] text-red">
+              {pushError}
             </p>
           )}
         </section>
