@@ -6,6 +6,8 @@ import type { FaqItem } from '@/lib/faq/types'
 export const roleEnum = pgEnum('role', ['employee', 'admin'])
 export const kindEnum = pgEnum('formation_kind', ['sharepoint', 'pdf'])
 export const newsStatusEnum = pgEnum('news_status', ['draft', 'published'])
+export const difySourceTypeEnum = pgEnum('dify_source_type', ['faq_draft', 'formation_doc'])
+export const difySyncStatusEnum = pgEnum('dify_sync_status', ['pending', 'synced', 'failed'])
 
 export const stores = pgTable('stores', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -136,3 +138,23 @@ export const faqDrafts = pgTable('faq_drafts', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+/**
+ * Pont APS → Dify : une ligne par contenu source poussé vers un dataset Dify.
+ * sourceId est polymorphe (faqDrafts.id | formationDocuments.id) — pas de FK,
+ * cohérence gérée applicativement (unsync au delete de la source).
+ */
+export const difySync = pgTable('dify_sync', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceType: difySourceTypeEnum('source_type').notNull(),
+  sourceId: uuid('source_id').notNull(),
+  datasetId: text('dataset_id').notNull(),
+  difyDocumentId: text('dify_document_id'),
+  status: difySyncStatusEnum('status').notNull().default('pending'),
+  error: text('error'),
+  syncedAt: timestamp('synced_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  sourceUnique: uniqueIndex('dify_sync_source_unique').on(t.sourceType, t.sourceId),
+}))

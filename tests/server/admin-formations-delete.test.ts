@@ -9,6 +9,9 @@ vi.mock('node:fs/promises', () => ({
   default: { rm: (...a: unknown[]) => rm(...a), readdir: (...a: unknown[]) => readdir(...a) },
 }))
 
+const { removeSyncedDocument } = vi.hoisted(() => ({ removeSyncedDocument: vi.fn() }))
+vi.mock('@/server/dify/sync-store', () => ({ removeSyncedDocument }))
+
 const FORMATION_ID = '22222222-2222-4222-8222-222222222222'
 const DOC_A = '33333333-3333-4333-8333-333333333333'
 const DOC_B = '44444444-4444-4444-8444-444444444444'
@@ -42,6 +45,7 @@ describe('admin.formations.delete — nettoyage disque', () => {
     vi.clearAllMocks()
     rm.mockResolvedValue(undefined)
     readdir.mockResolvedValue([])
+    removeSyncedDocument.mockResolvedValue(undefined)
     selectWhere.mockResolvedValue([{ id: DOC_A }, { id: DOC_B }])
     deleteReturning.mockResolvedValue([{ id: FORMATION_ID }])
   })
@@ -72,6 +76,18 @@ describe('admin.formations.delete — nettoyage disque', () => {
     expect(result).toEqual({ id: FORMATION_ID })
   })
 
+  it('purge le document Dify de chaque document collecté (best-effort)', async () => {
+    await caller.formations.delete({ id: FORMATION_ID })
+    expect(removeSyncedDocument).toHaveBeenCalledWith(expect.anything(), 'formation_doc', DOC_A)
+    expect(removeSyncedDocument).toHaveBeenCalledWith(expect.anything(), 'formation_doc', DOC_B)
+  })
+
+  it("un échec unsync Dify ne fait pas échouer la mutation (best-effort)", async () => {
+    removeSyncedDocument.mockRejectedValue(new Error('dify down'))
+    const result = await caller.formations.delete({ id: FORMATION_ID })
+    expect(result).toEqual({ id: FORMATION_ID })
+  })
+
   it('NOT_FOUND inchangé quand la formation est introuvable (aucun rm)', async () => {
     deleteReturning.mockResolvedValue([])
     await expect(caller.formations.delete({ id: FORMATION_ID })).rejects.toMatchObject({
@@ -85,11 +101,23 @@ describe('admin.formations.deleteDocument — nettoyage disque', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     rm.mockResolvedValue(undefined)
+    removeSyncedDocument.mockResolvedValue(undefined)
     deleteReturning.mockResolvedValue([{ id: DOC_A }])
   })
 
   it("un échec fs ne fait pas échouer la mutation (best-effort)", async () => {
     rm.mockRejectedValue(new Error('EACCES'))
+    const result = await caller.formations.deleteDocument({ docId: DOC_A })
+    expect(result).toEqual({ docId: DOC_A })
+  })
+
+  it('purge le document Dify orphelin (best-effort)', async () => {
+    await caller.formations.deleteDocument({ docId: DOC_A })
+    expect(removeSyncedDocument).toHaveBeenCalledWith(expect.anything(), 'formation_doc', DOC_A)
+  })
+
+  it("un échec unsync Dify ne fait pas échouer la mutation (best-effort)", async () => {
+    removeSyncedDocument.mockRejectedValue(new Error('dify down'))
     const result = await caller.formations.deleteDocument({ docId: DOC_A })
     expect(result).toEqual({ docId: DOC_A })
   })

@@ -20,11 +20,28 @@ const GENERATE_MORE_ERRORS: Record<string, string> = {
   anthropic_not_configured: 'Clé Anthropic absente — configurez ANTHROPIC_API_KEY.',
 }
 
+const DIFY_STATUS_LABEL: Record<'pending' | 'synced' | 'failed', string> = {
+  pending: 'En attente',
+  synced: 'Synchronisée',
+  failed: 'Échec',
+}
+
+const DIFY_STATUS_CLASS: Record<'pending' | 'synced' | 'failed', string> = {
+  pending: 'text-faint',
+  synced: 'text-sub',
+  failed: 'text-red',
+}
+
 export function FaqDraftEditor({ draftId }: { draftId: string }) {
   const utils = trpc.useUtils()
   const draft = trpc.admin.faqBuilder.get.useQuery({ id: draftId })
   const update = trpc.admin.faqBuilder.updateItems.useMutation()
   const generateMore = trpc.admin.faqBuilder.generateMore.useMutation()
+  const difyStatus = trpc.admin.difySync.status.useQuery({
+    sourceType: 'faq_draft',
+    sourceIds: [draftId],
+  })
+  const pushToDify = trpc.admin.difySync.pushFaq.useMutation()
 
   const [items, setItems] = useState<FaqItem[] | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -58,6 +75,7 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
   const list = items ?? []
   const hasEmpty = list.some((it) => !it.question.trim() || !it.answer.trim())
   const busy = generateMore.isPending || update.isPending
+  const syncRow = difyStatus.data?.find((row) => row.sourceId === draftId) ?? null
 
   const edit = (id: string, patch: Partial<Pick<FaqItem, 'question' | 'answer'>>) => {
     setItems((prev) => (prev ?? []).map((it) => (it.id === id ? { ...it, ...patch } : it)))
@@ -125,6 +143,27 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
     )
   }
 
+  const pushDify = () => {
+    setBanner(null)
+    pushToDify.mutate(
+      { draftId },
+      {
+        onSuccess: () => {
+          setBanner({ kind: 'status', text: 'FAQ poussée vers Dify.' })
+          difyStatus.refetch()
+        },
+        onError: (err) =>
+          setBanner({
+            kind: 'alert',
+            text:
+              err.message === 'dify_knowledge_not_configured'
+                ? 'Connaissance Dify non configurée — vérifiez DIFY_QA_DATASET_ID.'
+                : "L'envoi vers Dify a échoué. Réessayez.",
+          }),
+      },
+    )
+  }
+
   const exportCsv = () => {
     const csv = buildFaqCsv(list)
     const date = new Date().toISOString().slice(0, 10)
@@ -170,7 +209,29 @@ export function FaqDraftEditor({ draftId }: { draftId: string }) {
           >
             Exporter CSV
           </button>
+          <button
+            type="button"
+            onClick={pushDify}
+            disabled={dirty || busy || pushToDify.isPending || list.length === 0}
+            className="rounded-lg bg-ink px-3 py-1.5 text-[13px] font-semibold text-white disabled:opacity-50"
+          >
+            {pushToDify.isPending ? 'Envoi…' : 'Pousser vers Dify'}
+          </button>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-[13px]">
+        <span className="text-faint">Dify :</span>
+        {syncRow ? (
+          <span className={`font-semibold ${DIFY_STATUS_CLASS[syncRow.status]}`}>
+            {DIFY_STATUS_LABEL[syncRow.status]}
+            {syncRow.status === 'synced' && syncRow.syncedAt
+              ? ` — ${new Date(syncRow.syncedAt).toLocaleString('fr-FR')}`
+              : ''}
+          </span>
+        ) : (
+          <span className="text-faint">Jamais poussée</span>
+        )}
       </div>
 
       {hasEmpty && (

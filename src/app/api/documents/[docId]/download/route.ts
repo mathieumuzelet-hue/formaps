@@ -1,17 +1,13 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
 
 import { eq } from 'drizzle-orm'
 
 import { auth } from '@/server/auth'
 import { db } from '@/server/db'
 import { formationDocuments, userDocumentViews } from '@/server/db/schema'
+import { formationPdfPath } from '@/server/storage/uploads'
 
 export const runtime = 'nodejs'
-
-function uploadsDir(): string {
-  return process.env.UPLOADS_DIR || '/app/uploads'
-}
 
 /**
  * Sert un PDF depuis le volume persistant, réservé aux utilisateurs
@@ -44,7 +40,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ docId: s
       .onConflictDoNothing(),
   ).catch(() => {})
 
-  const filePath = path.join(uploadsDir(), `${docId}.pdf`)
+  const filePath = formationPdfPath(docId)
   try {
     await fs.stat(filePath)
   } catch {
