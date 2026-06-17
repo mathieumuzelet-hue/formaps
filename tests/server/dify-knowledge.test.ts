@@ -20,6 +20,10 @@ describe('knowledgeConfig', () => {
     delete process.env.DIFY_DATASET_API_KEY
     expect(() => knowledgeConfig()).toThrow()
   })
+  test('throws when url missing', () => {
+    delete process.env.DIFY_API_URL
+    expect(() => knowledgeConfig()).toThrow()
+  })
 })
 
 describe('createQaDocument', () => {
@@ -60,7 +64,15 @@ describe('deleteDocument', () => {
   test('DELETEs the document', async () => {
     const fetchImpl = vi.fn(async () => new Response('', { status: 200 })) as unknown as typeof fetch
     await deleteDocument({ datasetId: 'ds', documentId: 'doc-9', fetchImpl })
-    const url = (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][0]
-    expect(url).toBe('https://dify.example.com/v1/datasets/ds/documents/doc-9')
+    const call = (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]
+    expect(call[0]).toBe('https://dify.example.com/v1/datasets/ds/documents/doc-9')
+    expect((call[1] as RequestInit).method).toBe('DELETE')
+  })
+
+  test('throws DifyKnowledgeError on non-ok', async () => {
+    const fetchImpl = vi.fn(async () => new Response('nope', { status: 404 })) as unknown as typeof fetch
+    await expect(
+      deleteDocument({ datasetId: 'ds', documentId: 'doc-9', fetchImpl }),
+    ).rejects.toBeInstanceOf(DifyKnowledgeError)
   })
 })
