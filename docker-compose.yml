@@ -42,6 +42,13 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       DIFY_API_URL: ${DIFY_API_URL}
       DIFY_API_KEY: ${DIFY_API_KEY}
+      # Pont Knowledge Dify (alimentation des datasets depuis le Cockpit) : clé
+      # dataset (préfixe `dataset-`, distincte de DIFY_API_KEY App) + ids des
+      # datasets cibles. DOIVENT être mappées ici pour atteindre le conteneur ;
+      # les variables Dokploy ne servent qu'à l'interpolation compose.
+      DIFY_DATASET_API_KEY: ${DIFY_DATASET_API_KEY:-}
+      DIFY_QA_DATASET_ID: ${DIFY_QA_DATASET_ID:-}
+      DIFY_DOCS_DATASET_ID: ${DIFY_DOCS_DATASET_ID:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Seuil de pertinence FAQ-gaps (vide → défaut 0.5 dans le code).
       FAQ_RELEVANCE_THRESHOLD: ${FAQ_RELEVANCE_THRESHOLD:-}
