@@ -22,6 +22,7 @@ describe('upsertSync', () => {
     const row = m.values.mock.calls[0][0] as Record<string, unknown>
     expect(row.status).toBe('synced')
     expect(row.syncedAt).toBeInstanceOf(Date)
+    expect(row.updatedAt).toBeInstanceOf(Date)
     expect(m.onConflictDoUpdate).toHaveBeenCalledTimes(1)
   })
   test('failed status carries error and null syncedAt', async () => {
@@ -41,5 +42,10 @@ describe('getSyncRow', () => {
   test('returns the row when present', async () => {
     const m = mockDb()
     expect(await getSyncRow(m.db, 'faq_draft', 's1')).toEqual({ difyDocumentId: 'd1', datasetId: 'ds' })
+  })
+  test('returns null when no row matches', async () => {
+    const m = mockDb()
+    m.where.mockResolvedValue([])
+    expect(await getSyncRow(m.db, 'faq_draft', 'missing')).toBeNull()
   })
 })
