@@ -36,6 +36,7 @@ import {
 } from '@/lib/admin/schemas'
 import { faqBuilderRouter } from './admin-faq-builder'
 import { faqGapsRouter } from './admin-faq-gaps'
+import { difySyncRouter } from './dify-sync'
 import { adminProcedure, router } from '../trpc'
 
 // Re-export so existing imports of the schema from the router keep working.
@@ -554,4 +555,5 @@ export const adminRouter = router({
   brainSuggestions: brainSuggestionsRouter,
   faqGaps: faqGapsRouter,
   faqBuilder: faqBuilderRouter,
+  difySync: difySyncRouter,
 })
