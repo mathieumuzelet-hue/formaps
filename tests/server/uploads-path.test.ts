@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { afterEach, describe, expect, test } from 'vitest'
 import { uploadsDir, formationPdfPath } from '@/server/storage/uploads'
 
@@ -13,6 +15,6 @@ describe('uploads paths', () => {
   })
   test('formationPdfPath joins docId.pdf', () => {
     process.env.UPLOADS_DIR = '/data/up'
-    expect(formationPdfPath('abc')).toBe('/data/up/abc.pdf'.replace(/\//g, require('node:path').sep))
+    expect(formationPdfPath('abc')).toBe(path.join('/data/up', 'abc.pdf'))
   })
 })
