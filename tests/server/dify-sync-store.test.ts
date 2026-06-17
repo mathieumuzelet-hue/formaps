@@ -1,5 +1,12 @@
-import { describe, expect, test, vi } from 'vitest'
-import { upsertSync, getSyncRow } from '@/server/dify/sync-store'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
+
+const { deleteDocument } = vi.hoisted(() => ({ deleteDocument: vi.fn() }))
+vi.mock('@/server/dify/knowledge', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  deleteDocument,
+}))
+
+import { upsertSync, getSyncRow, removeSyncedDocument } from '@/server/dify/sync-store'
 
 function mockDb() {
   const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined)
@@ -8,7 +15,13 @@ function mockDb() {
   const where = vi.fn().mockResolvedValue([{ difyDocumentId: 'd1', datasetId: 'ds' }])
   const from = vi.fn(() => ({ where }))
   const select = vi.fn(() => ({ from }))
-  return { db: { insert, select } as never, insert, values, onConflictDoUpdate, select, from, where }
+  const deleteWhere = vi.fn().mockResolvedValue(undefined)
+  const del = vi.fn(() => ({ where: deleteWhere }))
+  return {
+    db: { insert, select, delete: del } as never,
+    insert, values, onConflictDoUpdate, select, from, where,
+    delete: del, deleteWhere,
+  }
 }
 
 describe('upsertSync', () => {
@@ -47,5 +60,35 @@ describe('getSyncRow', () => {
     const m = mockDb()
     m.where.mockResolvedValue([])
     expect(await getSyncRow(m.db, 'faq_draft', 'missing')).toBeNull()
+  })
+})
+
+describe('removeSyncedDocument', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  test('deletes the Dify document then the dify_sync row when a synced row exists', async () => {
+    const m = mockDb() // getSyncRow → { difyDocumentId: 'd1', datasetId: 'ds' }
+    await removeSyncedDocument(m.db, 'faq_draft', 's1')
+    expect(deleteDocument).toHaveBeenCalledWith({ datasetId: 'ds', documentId: 'd1' })
+    expect(m.delete).toHaveBeenCalledTimes(1)
+    expect(m.deleteWhere).toHaveBeenCalledTimes(1)
+  })
+
+  test('still deletes the row but skips Dify when no row / no difyDocumentId', async () => {
+    const m = mockDb()
+    m.where.mockResolvedValue([]) // getSyncRow → null
+    await removeSyncedDocument(m.db, 'formation_doc', 'missing')
+    expect(deleteDocument).not.toHaveBeenCalled()
+    expect(m.delete).toHaveBeenCalledTimes(1)
+    expect(m.deleteWhere).toHaveBeenCalledTimes(1)
+  })
+
+  test('swallows a Dify delete failure and still deletes the row', async () => {
+    const m = mockDb()
+    deleteDocument.mockRejectedValueOnce(new Error('dify down'))
+    await expect(removeSyncedDocument(m.db, 'faq_draft', 's1')).resolves.toBeUndefined()
+    expect(m.delete).toHaveBeenCalledTimes(1)
   })
 })

@@ -16,8 +16,12 @@ vi.mock('@/server/dify/knowledge', async (importOriginal) => ({
   createDocumentByFile,
   updateDocumentByFile,
 }))
-const { upsertSync, getSyncRow } = vi.hoisted(() => ({ upsertSync: vi.fn(), getSyncRow: vi.fn() }))
-vi.mock('@/server/dify/sync-store', () => ({ upsertSync, getSyncRow }))
+const { upsertSync, getSyncRow, removeSyncedDocument } = vi.hoisted(() => ({
+  upsertSync: vi.fn(),
+  getSyncRow: vi.fn(),
+  removeSyncedDocument: vi.fn(),
+}))
+vi.mock('@/server/dify/sync-store', () => ({ upsertSync, getSyncRow, removeSyncedDocument }))
 const { readFile } = vi.hoisted(() => ({ readFile: vi.fn() }))
 vi.mock('node:fs/promises', () => ({ default: { readFile }, readFile }))
 
@@ -111,6 +115,12 @@ test('pushFormationDoc re-push uses updateDocumentByFile', async () => {
     expect.objectContaining({ documentId: 'old-fdoc', datasetId: 'docs-ds' }),
   )
   expect(createDocumentByFile).not.toHaveBeenCalled()
+})
+
+test('unsync delegates to removeSyncedDocument and returns ok', async () => {
+  const out = await caller().difySync.unsync({ sourceType: 'faq_draft', sourceId: DRAFT_ID })
+  expect(out).toEqual({ ok: true })
+  expect(removeSyncedDocument).toHaveBeenCalledWith(expect.anything(), 'faq_draft', DRAFT_ID)
 })
 
 test('non-admin → FORBIDDEN', async () => {

@@ -12,6 +12,7 @@ import { hashPassword } from '@/server/auth/password'
 import { generatePassword } from '@/server/auth/generate-password'
 import { prepareUserInsert } from '@/lib/admin/prepare-user'
 import { stripPassword } from '@/lib/admin/sanitize-user'
+import { removeSyncedDocument } from '@/server/dify/sync-store'
 import {
   MAX_IMPORT_ROWS,
   normalizeHeader,
@@ -192,6 +193,17 @@ const formationsRouter = router({
         // Dossier absent (aucune couverture jamais uploadée) — ignore.
       }
 
+      // Best-effort : la cascade DB efface formation_documents mais PAS dify_sync
+      // (table sans FK), et le document reste orphelin dans Dify. On purge chaque
+      // doc collecté avant le delete ; un échec n'interrompt pas la mutation.
+      await Promise.all(
+        docs.map((d) =>
+          removeSyncedDocument(ctx.db, 'formation_doc', d.id).catch((err) =>
+            console.error('[admin] unsync Dify après delete formation a échoué (on continue):', err),
+          ),
+        ),
+      )
+
       return { id: input.id }
     }),
 
@@ -221,6 +233,13 @@ const formationsRouter = router({
       // échec fs ne fait pas échouer la mutation — la ligne DB est déjà supprimée.
       const dir = process.env.UPLOADS_DIR || '/app/uploads'
       await fs.rm(path.join(dir, `${input.docId}.pdf`), { force: true }).catch(() => {})
+
+      // Best-effort : purge le document Dify + la ligne dify_sync orpheline.
+      try {
+        await removeSyncedDocument(ctx.db, 'formation_doc', input.docId)
+      } catch (err) {
+        console.error('[admin] unsync Dify après deleteDocument a échoué (on continue):', err)
+      }
 
       return { docId: input.docId }
     }),

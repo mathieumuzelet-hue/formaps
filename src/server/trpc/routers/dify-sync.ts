@@ -12,7 +12,7 @@ import {
   createDocumentByFile,
   updateDocumentByFile,
 } from '@/server/dify/knowledge'
-import { upsertSync, getSyncRow } from '@/server/dify/sync-store'
+import { upsertSync, getSyncRow, removeSyncedDocument } from '@/server/dify/sync-store'
 import { formationPdfPath } from '@/server/storage/uploads'
 import { adminProcedure, router } from '../trpc'
 
@@ -115,17 +115,7 @@ export const difySyncRouter = router({
   unsync: adminProcedure
     .input(z.object({ sourceType: sourceTypeSchema, sourceId: z.uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const existing = await getSyncRow(ctx.db, input.sourceType, input.sourceId)
-      if (existing?.difyDocumentId) {
-        try {
-          await deleteDocument({ datasetId: existing.datasetId, documentId: existing.difyDocumentId })
-        } catch (err) {
-          console.error('[dify-sync] delete Dify a échoué (purge locale quand même):', err)
-        }
-      }
-      await ctx.db
-        .delete(difySync)
-        .where(and(eq(difySync.sourceType, input.sourceType), eq(difySync.sourceId, input.sourceId)))
+      await removeSyncedDocument(ctx.db, input.sourceType, input.sourceId)
       return { ok: true as const }
     }),
 

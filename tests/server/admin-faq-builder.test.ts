@@ -13,6 +13,9 @@ vi.mock('@/server/claude-core', async (importOriginal) => ({
   createAnthropicClient: vi.fn(() => ({})),
 }))
 
+const { removeSyncedDocument } = vi.hoisted(() => ({ removeSyncedDocument: vi.fn() }))
+vi.mock('@/server/dify/sync-store', () => ({ removeSyncedDocument }))
+
 const selectWhere = vi.fn()
 const selectOrderBy = vi.fn()
 const selectFrom = vi.fn(() => ({ where: selectWhere, orderBy: selectOrderBy }))
@@ -148,9 +151,23 @@ test('generateMore : draft inconnu → NOT_FOUND', async () => {
   })
 })
 
-test('delete inconnu → NOT_FOUND', async () => {
+test('delete inconnu → NOT_FOUND (aucun unsync)', async () => {
   deleteReturning.mockResolvedValue([])
   await expect(caller().faqBuilder.delete({ id: DRAFT_ID })).rejects.toMatchObject({
     code: 'NOT_FOUND',
   })
+  expect(removeSyncedDocument).not.toHaveBeenCalled()
+})
+
+test('delete purge le document Dify (best-effort) après suppression de la ligne', async () => {
+  deleteReturning.mockResolvedValue([{ id: DRAFT_ID }])
+  const res = await caller().faqBuilder.delete({ id: DRAFT_ID })
+  expect(res).toEqual({ ok: true })
+  expect(removeSyncedDocument).toHaveBeenCalledWith(expect.anything(), 'faq_draft', DRAFT_ID)
+})
+
+test('delete : un échec unsync ne fait pas échouer la mutation (best-effort)', async () => {
+  deleteReturning.mockResolvedValue([{ id: DRAFT_ID }])
+  removeSyncedDocument.mockRejectedValueOnce(new Error('dify down'))
+  await expect(caller().faqBuilder.delete({ id: DRAFT_ID })).resolves.toEqual({ ok: true })
 })

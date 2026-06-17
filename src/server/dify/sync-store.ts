@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import type { db as Db } from '@/server/db'
 import { difySync } from '@/server/db/schema'
+import { deleteDocument } from './knowledge'
 
 type DbLike = typeof Db
 type SourceType = 'faq_draft' | 'formation_doc'
@@ -44,4 +45,29 @@ export async function getSyncRow(
     .from(difySync)
     .where(and(eq(difySync.sourceType, sourceType), eq(difySync.sourceId, sourceId)))
   return rows[0] ?? null
+}
+
+/**
+ * Supprime la trace de synchronisation d'une source : efface le document Dify
+ * associé (best-effort — un échec est loggé puis avalé) puis la ligne dify_sync.
+ * À appeler quand la source (brouillon FAQ ou document de formation) est supprimée,
+ * sinon le document reste orphelin dans le dataset Dify et la ligne dify_sync
+ * (sans FK) survit à la cascade.
+ */
+export async function removeSyncedDocument(
+  db: DbLike,
+  sourceType: SourceType,
+  sourceId: string,
+): Promise<void> {
+  const existing = await getSyncRow(db, sourceType, sourceId)
+  if (existing?.difyDocumentId) {
+    try {
+      await deleteDocument({ datasetId: existing.datasetId, documentId: existing.difyDocumentId })
+    } catch (err) {
+      console.error('[dify-sync] delete Dify a échoué (purge locale quand même):', err)
+    }
+  }
+  await db
+    .delete(difySync)
+    .where(and(eq(difySync.sourceType, sourceType), eq(difySync.sourceId, sourceId)))
 }

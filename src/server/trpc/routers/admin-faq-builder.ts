@@ -8,6 +8,7 @@ import { faqDrafts } from '@/server/db/schema'
 import { faqItemSchema, type FaqItem } from '@/lib/faq/types'
 import { ClaudeOutputTruncatedError, createAnthropicClient } from '@/server/claude-core'
 import { NoNewPairsError, generateMorePairs } from '@/server/faq/claude'
+import { removeSyncedDocument } from '@/server/dify/sync-store'
 import { adminProcedure, router } from '../trpc'
 
 /**
@@ -119,6 +120,15 @@ export const faqBuilderRouter = router({
       .where(eq(faqDrafts.id, input.id))
       .returning({ id: faqDrafts.id })
     if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+
+    // Best-effort : purge le document Dify + la ligne dify_sync (même esprit que
+    // le nettoyage disque des formations). Un échec ne fait pas échouer le delete.
+    try {
+      await removeSyncedDocument(ctx.db, 'faq_draft', input.id)
+    } catch (err) {
+      console.error('[faq-builder] unsync Dify après delete a échoué (on continue):', err)
+    }
+
     return { ok: true }
   }),
 })
