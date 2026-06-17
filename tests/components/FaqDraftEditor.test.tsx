@@ -7,6 +7,10 @@ const updateMutate = vi.hoisted(() => vi.fn())
 const generateMoreMutate = vi.hoisted(() => vi.fn())
 const updatePending = vi.hoisted(() => ({ value: false }))
 const generateMorePending = vi.hoisted(() => ({ value: false }))
+const difyStatusQuery = vi.hoisted(() => vi.fn())
+const difyStatusRefetch = vi.hoisted(() => vi.fn())
+const pushFaqMutate = vi.hoisted(() => vi.fn())
+const pushFaqPending = vi.hoisted(() => ({ value: false }))
 vi.mock('@/lib/trpc/client', () => ({
   trpc: {
     admin: {
@@ -20,6 +24,12 @@ vi.mock('@/lib/trpc/client', () => ({
             mutate: generateMoreMutate,
             isPending: generateMorePending.value,
           }),
+        },
+      },
+      difySync: {
+        status: { useQuery: difyStatusQuery },
+        pushFaq: {
+          useMutation: () => ({ mutate: pushFaqMutate, isPending: pushFaqPending.value }),
         },
       },
     },
@@ -47,6 +57,8 @@ beforeEach(() => {
   updatePending.value = false
   generateMorePending.value = false
   getQuery.mockReturnValue({ data: DRAFT, isLoading: false, isError: false })
+  pushFaqPending.value = false
+  difyStatusQuery.mockReturnValue({ data: [], refetch: difyStatusRefetch })
 })
 
 test('affiche les paires avec badges origine et compteur', () => {
