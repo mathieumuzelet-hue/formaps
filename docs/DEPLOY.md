@@ -140,6 +140,24 @@ Docker. Soit pointer `DIFY_API_URL` vers une URL routable (ex. via le réseau
 Traefik partagé), soit ajouter le réseau de Dify au service `web`. À confirmer
 selon la topologie réseau du VPS.
 
+### Pont Knowledge Dify
+
+Le Cockpit pousse les FAQ et les PDF de formation vers les **datasets Knowledge**
+de Dify (distinct de l'app de chat). Trois variables à renseigner :
+
+| Variable                | Description                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `DIFY_DATASET_API_KEY`  | Clé API **Knowledge** Dify (type *dataset*), **distincte** de `DIFY_API_KEY` (clé de l'app) |
+| `DIFY_QA_DATASET_ID`    | Id du dataset Q&A (FAQ poussées depuis le Cockpit)                                            |
+| `DIFY_DOCS_DATASET_ID`  | Id du dataset documents (MASTER_FORMATIONS ou OCR)                                            |
+
+⚠️ Ces trois variables doivent être **posées dans l'UI Dokploy** **ET** mappées
+dans le bloc `environment:` du service `web` du `docker-compose.yml`. Une variable
+posée seulement dans Dokploy mais absente du compose n'atteint pas le conteneur
+(gotcha projet connu). Sans ces variables, le pont Knowledge reste inactif et les
+boutons de synchronisation signalent une configuration manquante (le reste de
+l'application n'est pas affecté).
+
 ### Labo d'embed (admin)
 
 L'outil `/admin/embed-test` appelle l'API Claude d'Anthropic (facturé à l'usage,
