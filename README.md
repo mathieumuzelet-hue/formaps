@@ -47,6 +47,15 @@ interroge **BRAIN**, l'assistant IA documentaire (RAG via Dify).
   d'origine), « Générer plus » (questions inédites, dédup + retry), export
   **CSV au format Q&A de Dify** (la question de chaque paire est embedée à
   l'import). Nécessite `ANTHROPIC_API_KEY`.
+- **Pont Knowledge Dify** — depuis le FAQ Builder et l'écran Formations, bouton
+  **« Pousser vers Dify »** par FAQ / document, avec badge d'état (synchronisée /
+  en attente / échec). Alimente directement les bases de connaissances de BRAIN
+  via l'**API Knowledge de Dify** (sens APS → Dify) : une FAQ devient un document
+  Q&A (paires en segments), un PDF de formation est uploadé dans la base
+  documents. Push **idempotent** (re-push = mise à jour, pas de doublon),
+  suppression de la source **propagée** à Dify. Nécessite une **clé dataset**
+  `DIFY_DATASET_API_KEY` (distincte de la clé App `DIFY_API_KEY`) +
+  `DIFY_QA_DATASET_ID` et `DIFY_DOCS_DATASET_ID`.
 
 ## Stack
 
@@ -56,7 +65,7 @@ interroge **BRAIN**, l'assistant IA documentaire (RAG via Dify).
 - **Auth.js (next-auth v5)** — sessions JWT (claim `passwordChangedAt` vérifié
   côté Node à chaque requête), mots de passe argon2id
 - **Tailwind CSS 4**, typographie Montserrat
-- **Vitest** + Testing Library (~440 tests) ; **CI GitHub Actions**
+- **Vitest** + Testing Library (~560 tests) ; **CI GitHub Actions**
   (lint + typecheck + tests + build) requise sur chaque PR et push `main`
 - **BRAIN** : proxy SSE serveur (`/api/brain`) vers un conteneur **Dify**
   séparé (`DIFY_API_URL`) — timeout de connexion, auto-heal discriminé par
@@ -79,6 +88,11 @@ interroge **BRAIN**, l'assistant IA documentaire (RAG via Dify).
 - Middleware Edge **signature-only** ; la fraîcheur de session (mot de passe
   changé) est vérifiée côté Node — la page `/connexion` est toujours accessible
   pour éviter toute boucle de redirection.
+- `src/server/dify/knowledge.ts` — client de l'**API Knowledge Dify**, distinct
+  du client App (`client.ts`) et authentifié par une **clé dataset séparée**.
+  La table `dify_sync` (polymorphe, sans FK) mappe chaque source poussée
+  (FAQ / document de formation) vers son document Dify et son état de synchro ;
+  le routeur `difySync` (admin) orchestre push / unsync / statut.
 
 ## Développement local
 
