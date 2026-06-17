@@ -79,6 +79,55 @@ export async function createQaDocument(args: {
   return { documentId }
 }
 
+async function postFile(
+  url: string,
+  datasetKey: string,
+  name: string,
+  bytes: Uint8Array,
+  fetchImpl: typeof fetch,
+): Promise<unknown> {
+  const fd = new FormData()
+  fd.set('data', JSON.stringify({
+    name,
+    indexing_technique: 'high_quality',
+    process_rule: { mode: 'automatic' },
+  }))
+  fd.set('file', new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' }), name)
+  const res = await fetchImpl(url, {
+    method: 'POST',
+    signal: AbortSignal.timeout(KNOWLEDGE_TIMEOUT_MS),
+    headers: { Authorization: `Bearer ${datasetKey}` }, // pas de Content-Type : FormData gère le boundary
+    body: fd,
+  })
+  if (!res.ok) throw new DifyKnowledgeError(res.status, await res.text().catch(() => ''))
+  return res.json().catch(() => ({}))
+}
+
+export async function createDocumentByFile(args: {
+  datasetId: string; name: string; bytes: Uint8Array; fetchImpl?: typeof fetch
+}): Promise<{ documentId: string }> {
+  const fetchImpl = args.fetchImpl ?? fetch
+  const { base, datasetKey } = knowledgeConfig()
+  const out = (await postFile(
+    `${base}/v1/datasets/${args.datasetId}/document/create-by-file`,
+    datasetKey, args.name, args.bytes, fetchImpl,
+  )) as { document?: { id?: string } }
+  const documentId = out.document?.id
+  if (!documentId) throw new DifyKnowledgeError(200, 'create-by-file: missing document id')
+  return { documentId }
+}
+
+export async function updateDocumentByFile(args: {
+  datasetId: string; documentId: string; name: string; bytes: Uint8Array; fetchImpl?: typeof fetch
+}): Promise<void> {
+  const fetchImpl = args.fetchImpl ?? fetch
+  const { base, datasetKey } = knowledgeConfig()
+  await postFile(
+    `${base}/v1/datasets/${args.datasetId}/documents/${args.documentId}/update-by-file`,
+    datasetKey, args.name, args.bytes, fetchImpl,
+  )
+}
+
 export async function deleteDocument(args: {
   datasetId: string
   documentId: string

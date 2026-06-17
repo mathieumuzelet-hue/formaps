@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
+  createDocumentByFile,
   createQaDocument,
   deleteDocument,
   DifyKnowledgeError,
   knowledgeConfig,
+  updateDocumentByFile,
 } from '@/server/dify/knowledge'
 
 beforeEach(() => {
@@ -57,6 +59,43 @@ describe('createQaDocument', () => {
     await expect(
       createQaDocument({ datasetId: 'ds', name: 'n', segments: [], fetchImpl }),
     ).rejects.toBeInstanceOf(DifyKnowledgeError)
+  })
+})
+
+describe('createDocumentByFile', () => {
+  test('posts multipart with data + file, returns documentId', async () => {
+    let captured: { url: string; init: RequestInit } | null = null
+    const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
+      captured = { url, init }
+      return new Response(JSON.stringify({ document: { id: 'doc-f' } }), { status: 200 })
+    }) as unknown as typeof fetch
+    const out = await createDocumentByFile({
+      datasetId: 'ds', name: 'cours.pdf', bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), fetchImpl,
+    })
+    expect(out).toEqual({ documentId: 'doc-f' })
+    expect(captured!.url).toBe('https://dify.example.com/v1/datasets/ds/document/create-by-file')
+    expect(captured!.init.body).toBeInstanceOf(FormData)
+    const fd = captured!.init.body as FormData
+    expect(JSON.parse(fd.get('data') as string).name).toBe('cours.pdf')
+    expect(fd.get('file')).toBeInstanceOf(Blob)
+    // pas de Content-Type manuel : FormData le pose lui-même (boundary)
+    expect((captured!.init.headers as Record<string, string>)['Content-Type']).toBeUndefined()
+  })
+})
+
+describe('updateDocumentByFile', () => {
+  test('posts multipart to update-by-file endpoint', async () => {
+    let captured: { url: string; init: RequestInit } | null = null
+    const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
+      captured = { url, init }
+      return new Response(JSON.stringify({ document: { id: 'doc-f' } }), { status: 200 })
+    }) as unknown as typeof fetch
+    await updateDocumentByFile({
+      datasetId: 'ds', documentId: 'doc-f', name: 'cours.pdf',
+      bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), fetchImpl,
+    })
+    expect(captured!.url).toBe('https://dify.example.com/v1/datasets/ds/documents/doc-f/update-by-file')
+    expect(captured!.init.body).toBeInstanceOf(FormData)
   })
 })
 
