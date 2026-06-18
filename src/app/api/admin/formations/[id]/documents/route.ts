@@ -7,6 +7,7 @@ import { auth } from '@/server/auth'
 import { db } from '@/server/db'
 import { formationDocuments, formations } from '@/server/db/schema'
 import { formatFileSize } from '@/lib/format-size'
+import { isPdf } from '@/lib/upload/magic-bytes'
 
 export const runtime = 'nodejs'
 
@@ -40,6 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   let file: File
+  let buffer: Uint8Array
   let title: string
   let pages: number
   let isNew: boolean
@@ -56,6 +58,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     if (file.size > MAX_SIZE) {
       return Response.json({ error: 'file_too_large' }, { status: 413 })
+    }
+
+    // The MIME `file.type` is client-controlled — verify the real %PDF
+    // signature BEFORE any DB row or disk write, to reject early.
+    buffer = new Uint8Array(await file.arrayBuffer())
+    if (!isPdf(buffer)) {
+      return Response.json({ error: 'invalid_type' }, { status: 415 })
     }
 
     const rawTitle = form.get('title')
@@ -102,7 +111,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const dir = uploadsDir()
     await fs.mkdir(dir, { recursive: true })
-    await fs.writeFile(path.join(dir, `${docId}.pdf`), Buffer.from(await file.arrayBuffer()))
+    await fs.writeFile(path.join(dir, `${docId}.pdf`), Buffer.from(buffer))
   } catch {
     await db.delete(formationDocuments).where(eq(formationDocuments.id, docId)).catch(() => {})
     return Response.json({ error: 'write_failed' }, { status: 500 })

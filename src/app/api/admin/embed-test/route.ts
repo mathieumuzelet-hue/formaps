@@ -1,4 +1,5 @@
 import { auth } from '@/server/auth'
+import { isPdf } from '@/lib/upload/magic-bytes'
 import { runEmbedTest } from '@/server/embed-test/pipeline'
 import {
   EMBED_TEST_MODEL_KEYS,
@@ -74,7 +75,10 @@ export async function POST(req: Request): Promise<Response> {
     return json({ error: 'invalid_form' }, 400)
   }
 
+  // The MIME `file.type` is client-controlled — verify the real %PDF signature.
   const buffer = new Uint8Array(await file.arrayBuffer())
+  if (!isPdf(buffer)) return json({ error: 'invalid_type' }, 415)
+
   const encoder = new TextEncoder()
 
   let cancelled = false
