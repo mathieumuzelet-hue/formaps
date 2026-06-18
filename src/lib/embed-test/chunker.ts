@@ -7,26 +7,15 @@
 import { decode, encode } from 'gpt-tokenizer'
 
 import type { ChunkConfig } from '@/lib/embed-test/types'
+import { normalizeSeparator, escapeSeparator } from '@/lib/embed-test/separator'
+
+// Re-exported so existing importers (claude.ts) keep importing from chunker.
+export { normalizeSeparator, escapeSeparator }
 
 export type Chunk = { text: string; parentText?: string }
 
 export function countTokens(text: string): number {
   return encode(text).length
-}
-
-/** Claude proposes separators as escaped strings ("\\n\\n") — unescape them. */
-export function normalizeSeparator(separator: string): string {
-  return separator.replace(/\\n/g, '\n').replace(/\\t/g, '\t')
-}
-
-/**
- * Display inverse of `normalizeSeparator`: real newline/tab characters → their
- * escaped two-char forms, so separators render on one line in the recommendation
- * card and the results table. Idempotent: an already-escaped "\\n" holds no REAL
- * newline character, so it passes through unchanged.
- */
-export function escapeSeparator(s: string): string {
-  return s.replace(/\n/g, '\\n').replace(/\t/g, '\\t')
 }
 
 export function preprocess(

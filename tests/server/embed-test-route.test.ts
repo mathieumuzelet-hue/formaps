@@ -79,6 +79,13 @@ describe('POST /api/admin/embed-test — validation', () => {
     expect(res.status).toBe(415)
   })
 
+  test('PDF MIME but non-PDF content → 415', async () => {
+    const file = new File(['PK\x03\x04 not a pdf'], 'doc.pdf', { type: 'application/pdf' })
+    const res = await POST(makeRequest({ file }))
+    expect(res.status).toBe(415)
+    expect(runEmbedTest).not.toHaveBeenCalled()
+  })
+
   test('unknown model → 400', async () => {
     const res = await POST(makeRequest({ model: 'gpt' }))
     expect(res.status).toBe(400)

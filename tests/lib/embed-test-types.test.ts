@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { chunkConfigSchema, configKey, refinePayloadSchema } from '@/lib/embed-test/types'
+import type { ChunkConfig } from '@/lib/embed-test/types'
 
 const valid = {
   label: 'Standard 1024',
@@ -78,6 +79,16 @@ describe('refinePayloadSchema', () => {
         .success,
     ).toBe(false)
   })
+
+  test('accepts payload with fileHash', () => {
+    expect(
+      refinePayloadSchema.safeParse({ ocr, tested: [tested], fileHash: 'abc' }).success,
+    ).toBe(true)
+  })
+
+  test('accepts payload without fileHash (optional)', () => {
+    expect(refinePayloadSchema.safeParse({ ocr, tested: [tested] }).success).toBe(true)
+  })
 })
 
 describe('configKey', () => {
@@ -99,5 +110,46 @@ describe('configKey', () => {
         childMaxTokens: 400,
       } as never),
     )
+  })
+})
+
+const base: ChunkConfig = {
+  label: 'x',
+  mode: 'general',
+  separator: '\\n\\n',
+  maxTokens: 200,
+  overlapTokens: 0,
+  preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+}
+
+const pc = {
+  label: 'pc',
+  mode: 'parent-child' as const,
+  separator: '\\n\\n',
+  maxTokens: 1000,
+  overlapTokens: 0,
+  parentMaxTokens: 1000,
+  childMaxTokens: 300,
+  preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+}
+
+describe('chunkConfigSchema — parent-child sizing', () => {
+  test('accepts child < parent', () => {
+    expect(chunkConfigSchema.safeParse(pc).success).toBe(true)
+  })
+  test('rejects child >= parent', () => {
+    expect(chunkConfigSchema.safeParse({ ...pc, childMaxTokens: 1000 }).success).toBe(false)
+    expect(chunkConfigSchema.safeParse({ ...pc, childMaxTokens: 1200 }).success).toBe(false)
+  })
+})
+
+describe('configKey — separator normalization', () => {
+  test('escaped and real separators yield the SAME key', () => {
+    expect(configKey({ ...base, separator: '\\n\\n' })).toBe(
+      configKey({ ...base, separator: '\n\n' }),
+    )
+  })
+  test('structurally different configs yield different keys', () => {
+    expect(configKey(base)).not.toBe(configKey({ ...base, maxTokens: 300 }))
   })
 })

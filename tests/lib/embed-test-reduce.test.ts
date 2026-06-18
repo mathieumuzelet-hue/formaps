@@ -27,6 +27,7 @@ describe('applyEvent', () => {
   test('accumulates steps, configs, results, report', () => {
     const report = {
       ocr: { verdict: 'text_ok' as const, reason: 'r', coverage: 0.9 },
+      fileHash: 'hash',
       ranking: [0],
       recommendation: { configIndex: 0, difySettings: 's', rationale: 'r' },
       usage: { inputTokens: 1, outputTokens: 2 },
@@ -76,6 +77,7 @@ const diagnostic = {
 
 const makeReport = (score: number) => ({
   ocr: { verdict: 'text_ok' as const, reason: 'r', coverage: 0.9 },
+  fileHash: 'hash',
   ranking: [0],
   recommendation: { configIndex: 0, difySettings: 's', rationale: `score ${score}` },
   usage: { inputTokens: 1, outputTokens: 2 },

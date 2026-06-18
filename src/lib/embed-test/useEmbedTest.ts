@@ -112,7 +112,11 @@ export function applyEvent(state: EmbedTestState, event: EmbedTestEvent): EmbedT
 /** Refine payload for the next round — null until a report exists. */
 export function buildRefinePayload(state: EmbedTestState): RefinePayload | null {
   if (!state.report || state.history.length === 0) return null
-  return { ocr: state.report.ocr, tested: state.history.slice(-30) }
+  return {
+    ocr: state.report.ocr,
+    tested: state.history.slice(-30),
+    fileHash: state.report.fileHash,
+  }
 }
 
 /**

@@ -7,6 +7,7 @@ import { ClaudeOutputTruncatedError, createAnthropicClient } from '@/server/clau
 import { generateFaqPairs } from '@/server/faq/claude'
 import { extractPages, PdfUnreadableError } from '@/server/embed-test/extract'
 import { DocxUnreadableError, extractDocxText } from '@/server/faq/extract-docx'
+import { isPdf, isZip } from '@/lib/upload/magic-bytes'
 import type { FaqItem } from '@/lib/faq/types'
 
 export const runtime = 'nodejs'
@@ -24,14 +25,8 @@ function json(body: unknown, status: number): Response {
 /** Extension AND magic bytes must agree — both checked (audit convention). */
 function sniffKind(name: string, bytes: Uint8Array): 'pdf' | 'docx' | null {
   const lower = name.toLowerCase()
-  const isPdf =
-    bytes.length >= 4 &&
-    bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 // %PDF
-  const isZip =
-    bytes.length >= 4 &&
-    bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04 // PK\x03\x04
-  if (lower.endsWith('.pdf') && isPdf) return 'pdf'
-  if (lower.endsWith('.docx') && isZip) return 'docx'
+  if (lower.endsWith('.pdf') && isPdf(bytes)) return 'pdf'
+  if (lower.endsWith('.docx') && isZip(bytes)) return 'docx'
   return null
 }
 

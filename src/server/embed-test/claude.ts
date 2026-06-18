@@ -41,13 +41,15 @@ const ocrVerdictSchema = z.object({
   coverage: z.number().min(0).max(1),
 })
 
-const OCR_TOOL_SCHEMA: Anthropic.Tool.InputSchema = {
+export const OCR_TOOL_SCHEMA: Anthropic.Tool.InputSchema = {
   type: 'object',
   properties: {
     verdict: { type: 'string', enum: ['text_ok', 'ocr_needed'] },
     reason: { type: 'string', description: 'Justification en français, 1-3 phrases' },
     coverage: {
       type: 'number',
+      minimum: 0,
+      maximum: 1,
       description: 'Part (0..1) du contenu lu visuellement présent dans le texte natif',
     },
   },
@@ -88,14 +90,14 @@ export async function ocrCompare(
 
 // ------------------------------------------------------------ proposeConfigs
 
-const CONFIG_PROPERTIES = {
+export const CONFIG_PROPERTIES = {
   label: { type: 'string' },
   mode: { type: 'string', enum: ['general', 'parent-child'] },
   separator: { type: 'string', description: 'Délimiteur, ex "\\n\\n" ou "\\n" ou "###"' },
-  maxTokens: { type: 'integer', description: 'Longueur max de chunk en tokens (100-4000)' },
-  overlapTokens: { type: 'integer', description: 'Chevauchement en tokens, < maxTokens' },
-  parentMaxTokens: { type: 'integer' },
-  childMaxTokens: { type: 'integer' },
+  maxTokens: { type: 'integer', minimum: 100, maximum: 4000, description: 'Longueur max de chunk en tokens (100-4000)' },
+  overlapTokens: { type: 'integer', minimum: 0, description: 'Chevauchement en tokens, < maxTokens' },
+  parentMaxTokens: { type: 'integer', minimum: 100, maximum: 8000 },
+  childMaxTokens: { type: 'integer', minimum: 50, maximum: 4000 },
   preprocessing: {
     type: 'object',
     properties: {
