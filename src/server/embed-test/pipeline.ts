@@ -102,7 +102,7 @@ export async function runEmbedTest(
       type: 'step',
       id: 'ocr',
       label: refine
-        ? 'Fichier modifié — recalcul du verdict OCR…'
+        ? 'Fichier modifié : recalcul du verdict OCR…'
         : 'Comparaison OCR vs extraction texte…',
     })
     const indices = samplePageIndices(totalPages, MAX_VISION_PAGES)
