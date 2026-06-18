@@ -112,6 +112,27 @@ const base: ChunkConfig = {
   preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
 }
 
+const pc = {
+  label: 'pc',
+  mode: 'parent-child' as const,
+  separator: '\\n\\n',
+  maxTokens: 1000,
+  overlapTokens: 0,
+  parentMaxTokens: 1000,
+  childMaxTokens: 300,
+  preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+}
+
+describe('chunkConfigSchema — parent-child sizing', () => {
+  test('accepts child < parent', () => {
+    expect(chunkConfigSchema.safeParse(pc).success).toBe(true)
+  })
+  test('rejects child >= parent', () => {
+    expect(chunkConfigSchema.safeParse({ ...pc, childMaxTokens: 1000 }).success).toBe(false)
+    expect(chunkConfigSchema.safeParse({ ...pc, childMaxTokens: 1200 }).success).toBe(false)
+  })
+})
+
 describe('configKey — separator normalization', () => {
   test('escaped and real separators yield the SAME key', () => {
     expect(configKey({ ...base, separator: '\\n\\n' })).toBe(

@@ -39,6 +39,14 @@ export const chunkConfigSchema = z
       (c.parentMaxTokens !== undefined && c.childMaxTokens !== undefined),
     { message: 'parent-child mode requires parentMaxTokens and childMaxTokens' },
   )
+  .refine(
+    (c) =>
+      c.mode === 'general' ||
+      c.parentMaxTokens === undefined ||
+      c.childMaxTokens === undefined ||
+      c.childMaxTokens < c.parentMaxTokens,
+    { message: 'childMaxTokens must be < parentMaxTokens' },
+  )
 
 export type ChunkConfig = z.infer<typeof chunkConfigSchema>
 
