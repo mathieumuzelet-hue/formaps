@@ -8,6 +8,7 @@ export const kindEnum = pgEnum('formation_kind', ['sharepoint', 'pdf'])
 export const newsStatusEnum = pgEnum('news_status', ['draft', 'published'])
 export const difySourceTypeEnum = pgEnum('dify_source_type', ['faq_draft', 'formation_doc'])
 export const difySyncStatusEnum = pgEnum('dify_sync_status', ['pending', 'synced', 'failed'])
+export const chatFeedbackEnum = pgEnum('chat_feedback', ['like', 'dislike'])
 
 export const stores = pgTable('stores', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -108,7 +109,7 @@ export const chatQueries = pgTable('chat_queries', {
   retrievalScoreMax: real('retrieval_score_max'),
   retrievalCount: integer('retrieval_count').notNull(),
   hasRelevantSource: boolean('has_relevant_source').notNull(),
-  feedback: text('feedback'), // 'like' | 'dislike' | null
+  feedback: chatFeedbackEnum('feedback'), // 'like' | 'dislike' | null
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => ({
   createdAtIdx: index('chat_queries_created_at_idx').on(t.createdAt),

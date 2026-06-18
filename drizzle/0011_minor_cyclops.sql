@@ -1,0 +1,2 @@
+CREATE TYPE "public"."chat_feedback" AS ENUM('like', 'dislike');--> statement-breakpoint
+ALTER TABLE "chat_queries" ALTER COLUMN "feedback" SET DATA TYPE "public"."chat_feedback" USING "feedback"::"public"."chat_feedback";
