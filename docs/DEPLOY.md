@@ -150,6 +150,7 @@ de Dify (distinct de l'app de chat). Trois variables à renseigner :
 | `DIFY_DATASET_API_KEY`  | Clé API **Knowledge** Dify (type *dataset*), **distincte** de `DIFY_API_KEY` (clé de l'app) |
 | `DIFY_QA_DATASET_ID`    | Id du dataset Q&A (FAQ poussées depuis le Cockpit)                                            |
 | `DIFY_DOCS_DATASET_ID`  | Id du dataset documents (MASTER_FORMATIONS ou OCR)                                            |
+| `DIFY_QA_DOC_LANGUAGE`  | (optionnel) Langue de génération Q&A des FAQ poussées. Vide → `French`. Met la case Dify « Chunk au format Q&A dans <langue> » sur cette valeur ; sans ça Dify prend English et traduit le contenu FR en anglais. |
 
 ⚠️ Ces trois variables doivent être **posées dans l'UI Dokploy** **ET** mappées
 dans le bloc `environment:` du service `web` du `docker-compose.yml`. Une variable

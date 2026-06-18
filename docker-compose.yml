@@ -49,6 +49,9 @@ services:
       DIFY_DATASET_API_KEY: ${DIFY_DATASET_API_KEY:-}
       DIFY_QA_DATASET_ID: ${DIFY_QA_DATASET_ID:-}
       DIFY_DOCS_DATASET_ID: ${DIFY_DOCS_DATASET_ID:-}
+      # Langue de génération Q&A côté Dify pour les FAQ poussées (case « Chunk au
+      # format Q&A dans <langue> »). Vide → défaut `French` dans le code.
+      DIFY_QA_DOC_LANGUAGE: ${DIFY_QA_DOC_LANGUAGE:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Seuil de pertinence FAQ-gaps (vide → défaut 0.5 dans le code).
       FAQ_RELEVANCE_THRESHOLD: ${FAQ_RELEVANCE_THRESHOLD:-}

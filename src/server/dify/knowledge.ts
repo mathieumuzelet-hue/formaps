@@ -32,11 +32,19 @@ function pdfData(name: string): Record<string, unknown> {
 }
 
 /**
- * Bloc `data` pour un CSV Q&A : `doc_form: 'qa_model'` fait parser à Dify les
- * colonnes `question,answer` en paires Q/R (mode Q&A du dataset).
+ * Bloc `data` pour un CSV Q&A (`doc_form: 'qa_model'`). Dify regénère les paires
+ * Q/R par LLM dans `doc_language` (case « Chunk au format Q&A dans <langue> » de
+ * l'UI). Sans ce champ, Dify prend English par défaut et TRADUIT le contenu FR en
+ * anglais. Surchargeable via DIFY_QA_DOC_LANGUAGE si Dify attend un autre libellé.
  */
 function qaCsvData(name: string): Record<string, unknown> {
-  return { name, indexing_technique: 'high_quality', process_rule: { mode: 'automatic' }, doc_form: 'qa_model' }
+  return {
+    name,
+    indexing_technique: 'high_quality',
+    process_rule: { mode: 'automatic' },
+    doc_form: 'qa_model',
+    doc_language: process.env.DIFY_QA_DOC_LANGUAGE || 'French',
+  }
 }
 
 function pdfBlob(bytes: Uint8Array): Blob {
