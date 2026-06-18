@@ -2,13 +2,15 @@
  * Server-only Dify KNOWLEDGE (dataset) API client. Distinct de l'App API
  * (client.ts) : clé dataset séparée. fetchImpl est injectable pour les tests.
  */
-import type { DifyQaSegment } from '@/lib/dify/faq-segments'
 
 export const KNOWLEDGE_TIMEOUT_MS = 30_000
 
 export class DifyKnowledgeError extends Error {
   constructor(public status: number, public body: string) {
-    super(`Dify knowledge API failed: ${status}`)
+    // Le corps tronqué est inclus dans le message : c'est ce qui est persisté
+    // dans `dify_sync.error`, donc l'opérateur voit le vrai motif Dify (et pas
+    // juste un code HTTP nu) sans avoir à instrumenter.
+    super(`Dify knowledge API failed: ${status}${body ? ` - ${body.slice(0, 300)}` : ''}`)
     this.name = 'DifyKnowledgeError'
   }
 }
@@ -24,75 +26,38 @@ export function knowledgeConfig(): { base: string; datasetKey: string } {
   return { base, datasetKey }
 }
 
-async function postJson(
-  url: string,
-  datasetKey: string,
-  body: unknown,
-  fetchImpl: typeof fetch,
-): Promise<unknown> {
-  const res = await fetchImpl(url, {
-    method: 'POST',
-    signal: AbortSignal.timeout(KNOWLEDGE_TIMEOUT_MS),
-    headers: { Authorization: `Bearer ${datasetKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new DifyKnowledgeError(res.status, await res.text().catch(() => ''))
-  return res.json().catch(() => ({}))
+/** Bloc `data` commun aux uploads de fichiers PDF. */
+function pdfData(name: string): Record<string, unknown> {
+  return { name, indexing_technique: 'high_quality', process_rule: { mode: 'automatic' } }
 }
 
 /**
- * Crée un document Q&A dans le dataset puis y ajoute les segments Q/R.
- * Le document est créé via create-by-text (texte placeholder minimal) en mode
- * Q&A, puis les paires exactes sont posées via l'API segments.
+ * Bloc `data` pour un CSV Q&A : `doc_form: 'qa_model'` fait parser à Dify les
+ * colonnes `question,answer` en paires Q/R (mode Q&A du dataset).
  */
-export async function createQaDocument(args: {
-  datasetId: string
-  name: string
-  segments: DifyQaSegment[]
-  fetchImpl?: typeof fetch
-}): Promise<{ documentId: string }> {
-  const { datasetId, name, segments } = args
-  const fetchImpl = args.fetchImpl ?? fetch
-  const { base, datasetKey } = knowledgeConfig()
+function qaCsvData(name: string): Record<string, unknown> {
+  return { name, indexing_technique: 'high_quality', process_rule: { mode: 'automatic' }, doc_form: 'qa_model' }
+}
 
-  const created = (await postJson(
-    `${base}/v1/datasets/${datasetId}/document/create-by-text`,
-    datasetKey,
-    {
-      name,
-      text: name,
-      indexing_technique: 'high_quality',
-      doc_form: 'qa_model',
-      process_rule: { mode: 'automatic' },
-    },
-    fetchImpl,
-  )) as { document?: { id?: string } }
-  const documentId = created.document?.id
-  if (!documentId) throw new DifyKnowledgeError(200, 'create-by-text: missing document id')
+function pdfBlob(bytes: Uint8Array): Blob {
+  return new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' })
+}
 
-  await postJson(
-    `${base}/v1/datasets/${datasetId}/documents/${documentId}/segments`,
-    datasetKey,
-    { segments },
-    fetchImpl,
-  )
-  return { documentId }
+function csvBlob(csv: string): Blob {
+  return new Blob([csv], { type: 'text/csv' })
 }
 
 async function postFile(
   url: string,
   datasetKey: string,
-  name: string,
-  bytes: Uint8Array,
+  data: Record<string, unknown>,
+  file: Blob,
+  filename: string,
   fetchImpl: typeof fetch,
 ): Promise<unknown> {
   const fd = new FormData()
-  fd.set('data', JSON.stringify({
-    name,
-    indexing_technique: 'high_quality',
-    process_rule: { mode: 'automatic' },
-  }))
-  fd.set('file', new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' }), name)
+  fd.set('data', JSON.stringify(data))
+  fd.set('file', file, filename)
   const res = await fetchImpl(url, {
     method: 'POST',
     signal: AbortSignal.timeout(KNOWLEDGE_TIMEOUT_MS),
@@ -103,6 +68,45 @@ async function postFile(
   return res.json().catch(() => ({}))
 }
 
+/**
+ * Crée un document Q&A en uploadant un CSV `question,answer` via create-by-file
+ * avec `doc_form: 'qa_model'`. C'est la voie d'ingestion Q&A supportée par Dify :
+ * l'API `segments` sur un dataset `qa_model` renvoie 404. Même format que l'export
+ * FAQ Builder validé manuellement.
+ */
+export async function createQaCsvDocument(args: {
+  datasetId: string
+  name: string
+  csv: string
+  fetchImpl?: typeof fetch
+}): Promise<{ documentId: string }> {
+  const fetchImpl = args.fetchImpl ?? fetch
+  const { base, datasetKey } = knowledgeConfig()
+  const out = (await postFile(
+    `${base}/v1/datasets/${args.datasetId}/document/create-by-file`,
+    datasetKey, qaCsvData(args.name), csvBlob(args.csv), args.name, fetchImpl,
+  )) as { document?: { id?: string } }
+  const documentId = out.document?.id
+  if (!documentId) throw new DifyKnowledgeError(200, 'create-by-file: missing document id')
+  return { documentId }
+}
+
+/** Remplace le contenu d'un document Q&A existant par un nouveau CSV. */
+export async function updateQaCsvDocument(args: {
+  datasetId: string
+  documentId: string
+  name: string
+  csv: string
+  fetchImpl?: typeof fetch
+}): Promise<void> {
+  const fetchImpl = args.fetchImpl ?? fetch
+  const { base, datasetKey } = knowledgeConfig()
+  await postFile(
+    `${base}/v1/datasets/${args.datasetId}/documents/${args.documentId}/update-by-file`,
+    datasetKey, qaCsvData(args.name), csvBlob(args.csv), args.name, fetchImpl,
+  )
+}
+
 export async function createDocumentByFile(args: {
   datasetId: string; name: string; bytes: Uint8Array; fetchImpl?: typeof fetch
 }): Promise<{ documentId: string }> {
@@ -110,7 +114,7 @@ export async function createDocumentByFile(args: {
   const { base, datasetKey } = knowledgeConfig()
   const out = (await postFile(
     `${base}/v1/datasets/${args.datasetId}/document/create-by-file`,
-    datasetKey, args.name, args.bytes, fetchImpl,
+    datasetKey, pdfData(args.name), pdfBlob(args.bytes), args.name, fetchImpl,
   )) as { document?: { id?: string } }
   const documentId = out.document?.id
   if (!documentId) throw new DifyKnowledgeError(200, 'create-by-file: missing document id')
@@ -124,7 +128,7 @@ export async function updateDocumentByFile(args: {
   const { base, datasetKey } = knowledgeConfig()
   await postFile(
     `${base}/v1/datasets/${args.datasetId}/documents/${args.documentId}/update-by-file`,
-    datasetKey, args.name, args.bytes, fetchImpl,
+    datasetKey, pdfData(args.name), pdfBlob(args.bytes), args.name, fetchImpl,
   )
 }
 
