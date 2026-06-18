@@ -7,7 +7,7 @@ export function MobileBrandBar() {
       <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red">
         <Icon name="compass" size={17} color="#fff" />
       </div>
-      <span className="font-serif text-[19px] font-semibold">Cockpit</span>
+      <span className="font-serif text-[19px] font-semibold">FormA+Super</span>
       <Icon name="bell" size={20} color={COLORS.sub} className="ml-auto" />
     </header>
   )

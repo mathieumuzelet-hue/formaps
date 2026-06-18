@@ -30,7 +30,7 @@ export default async function ConnexionPage({
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red">
             <Icon name="compass" size={21} color="#fff" strokeWidth={1.9} />
           </div>
-          <span className="font-serif text-[25px] font-semibold">Cockpit</span>
+          <span className="font-serif text-[25px] font-semibold">FormA+Super</span>
         </div>
 
         <div className="mb-10 mt-auto">
@@ -41,7 +41,7 @@ export default async function ConnexionPage({
             Chaque étape du trajet, accompagnée.
           </h1>
           <p className="mt-[18px] max-w-[420px] text-[15.5px] leading-[1.6] text-sub">
-            Cockpit réunit vos formations, vos repères et l’assistant BRAIN pour
+            FormA+Super réunit vos formations, vos repères et l’assistant BRAIN pour
             traverser la bascule sereinement, ensemble.
           </p>
         </div>

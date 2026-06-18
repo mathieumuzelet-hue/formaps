@@ -38,7 +38,7 @@ export function BNav({ firstName, role }: BNavProps) {
           <Icon name="compass" size={19} color="#fff" strokeWidth={1.9} />
         </div>
         <span className="font-serif text-[22px] font-semibold tracking-[-0.01em]">
-          Cockpit
+          FormA+Super
         </span>
       </Link>
 
