@@ -36,6 +36,7 @@ describe('parseEmbedTestEvent', () => {
           type: 'report',
           report: {
             ocr: { verdict: 'text_ok', reason: 'r', coverage: 0.98 },
+            fileHash: 'hash',
             ranking: [0],
             recommendation: { configIndex: 0, difySettings: 's', rationale: 'r' },
             usage: { inputTokens: 1, outputTokens: 2 },

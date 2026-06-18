@@ -40,6 +40,7 @@ const eventSchema = z.discriminatedUnion('type', [
         reason: z.string(),
         coverage: z.number(),
       }),
+      fileHash: z.string(),
       ranking: z.array(z.number().int()),
       recommendation: z.object({
         configIndex: z.number().int(),

@@ -30,6 +30,7 @@ import {
   PdfUnreadableError,
   samplePageIndices,
 } from '@/server/embed-test/extract'
+import { hashBuffer } from '@/server/embed-test/file-hash'
 
 // Cost guardrails (spec §3)
 const MAX_VISION_PAGES = 5
@@ -64,6 +65,7 @@ export async function runEmbedTest(
     total.inputTokens += u.inputTokens
     total.outputTokens += u.outputTokens
   }
+  const fileHash = hashBuffer(buffer)
 
   // 1. Native text extraction
   emit({ type: 'step', id: 'extract', label: 'Extraction du texte du PDF…' })
@@ -87,14 +89,22 @@ export async function runEmbedTest(
   const diagnostic = analyzePagesStructure(pages)
   emit({ type: 'diagnostic', diagnostic })
 
-  // 2. OCR verdict on sampled pages (vision vs native text layer).
-  // On a refine run the verdict from the previous round is reused (no vision call).
+  // 2. OCR verdict. On a refine run we reuse the previous verdict ONLY if the
+  // re-uploaded file is identical (same hash); otherwise we recompute it so a
+  // wrong file can't silently inherit a stale verdict (audit E-3).
   let ocr: OcrVerdict
-  if (refine) {
+  const reuseOcr = refine != null && refine.fileHash === fileHash
+  if (reuseOcr) {
     emit({ type: 'step', id: 'ocr', label: 'Verdict OCR réutilisé (tour précédent)' })
-    ocr = refine.ocr
+    ocr = refine!.ocr
   } else {
-    emit({ type: 'step', id: 'ocr', label: 'Comparaison OCR vs extraction texte…' })
+    emit({
+      type: 'step',
+      id: 'ocr',
+      label: refine
+        ? 'Fichier modifié — recalcul du verdict OCR…'
+        : 'Comparaison OCR vs extraction texte…',
+    })
     const indices = samplePageIndices(totalPages, MAX_VISION_PAGES)
     try {
       const samplePdf = await buildPdfSample(buffer, indices)
@@ -226,6 +236,7 @@ export async function runEmbedTest(
     type: 'report',
     report: {
       ocr,
+      fileHash,
       ranking: ranked,
       recommendation: {
         configIndex: bestIndex,

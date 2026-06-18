@@ -27,7 +27,11 @@ vi.mock('@/server/embed-test/claude', async (importOriginal) => {
 
 import { runEmbedTest, sampleChunks } from '@/server/embed-test/pipeline'
 import { PdfUnreadableError } from '@/server/embed-test/extract'
+import { hashBuffer } from '@/server/embed-test/file-hash'
 import type { ChunkConfig, EmbedTestEvent, RefinePayload } from '@/lib/embed-test/types'
+
+/** sha256 of the test buffer used by collect/collectRefine (new Uint8Array([0])). */
+const BUF_HASH = hashBuffer(new Uint8Array([0]))
 
 const config = (label: string): ChunkConfig => ({
   label,
@@ -224,6 +228,7 @@ describe('runEmbedTest — diagnostic & refine', () => {
     const refine: RefinePayload = {
       ocr: { verdict: 'ocr_needed', reason: 'scanné (tour 1)', coverage: 0.1 },
       tested: [{ config: config('A'), score: 2.5, issues: ['coupé'], round: 1 }],
+      fileHash: BUF_HASH,
     }
     const events = await collectRefine(refine)
     expect(ocrCompare).not.toHaveBeenCalled()
@@ -246,6 +251,7 @@ describe('runEmbedTest — diagnostic & refine', () => {
     const refine: RefinePayload = {
       ocr: { verdict: 'text_ok', reason: 'ok', coverage: 0.9 },
       tested: [{ config: config('A'), score: 3, issues: [], round: 1 }],
+      fileHash: BUF_HASH,
       manual,
     }
     const events = await collectRefine(refine)
@@ -263,6 +269,36 @@ describe('runEmbedTest — diagnostic & refine', () => {
     const args = judgeConfig.mock.calls[0]
     expect(args[2]).toMatchObject({ label: 'A' })
     expect(['structured', 'weakly_structured', 'flat']).toContain(args[4])
+  })
+
+  test('refine with mismatched fileHash → OCR recomputed (vision called)', async () => {
+    const refine: RefinePayload = {
+      ocr: { verdict: 'ocr_needed', reason: 'tour 1', coverage: 0.1 },
+      tested: [{ config: config('A'), score: 2, issues: [], round: 1 }],
+      fileHash: 'deadbeef-not-the-current-file',
+    }
+    const events = await collectRefine(refine)
+    expect(ocrCompare).toHaveBeenCalledTimes(1)
+    const ocrStep = events.find((e) => e.type === 'step' && e.id === 'ocr')
+    expect(ocrStep?.type === 'step' && ocrStep.label).toContain('recalcul')
+    const report = events.find((e) => e.type === 'report')
+    if (report?.type === 'report') expect(report.report.ocr.verdict).toBe('text_ok') // from ocrCompare mock
+  })
+
+  test('refine without fileHash → OCR recomputed', async () => {
+    const refine: RefinePayload = {
+      ocr: { verdict: 'ocr_needed', reason: 'tour 1', coverage: 0.1 },
+      tested: [{ config: config('A'), score: 2, issues: [], round: 1 }],
+    }
+    await collectRefine(refine)
+    expect(ocrCompare).toHaveBeenCalledTimes(1)
+  })
+
+  test('report carries the file hash', async () => {
+    const events = await collect()
+    const report = events.find((e) => e.type === 'report')
+    if (report?.type === 'report')
+      expect(report.report.fileHash).toBe(hashBuffer(new Uint8Array([0])))
   })
 })
 

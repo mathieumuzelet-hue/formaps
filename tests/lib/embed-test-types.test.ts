@@ -79,6 +79,16 @@ describe('refinePayloadSchema', () => {
         .success,
     ).toBe(false)
   })
+
+  test('accepts payload with fileHash', () => {
+    expect(
+      refinePayloadSchema.safeParse({ ocr, tested: [tested], fileHash: 'abc' }).success,
+    ).toBe(true)
+  })
+
+  test('accepts payload without fileHash (optional)', () => {
+    expect(refinePayloadSchema.safeParse({ ocr, tested: [tested] }).success).toBe(true)
+  })
 })
 
 describe('configKey', () => {

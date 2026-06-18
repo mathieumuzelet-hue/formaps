@@ -98,6 +98,8 @@ export const refinePayloadSchema = z.object({
     coverage: z.number().min(0).max(1),
   }),
   tested: z.array(testedConfigSchema).min(1).max(30),
+  /** sha256 du PDF du tour 1 ; si absent ou ≠ fichier courant, l'OCR est recalculé. */
+  fileHash: z.string().optional(),
   /** Optional admin-supplied config: pipeline judges ONLY this, skips propose. */
   manual: chunkConfigSchema.optional(),
 })
@@ -121,6 +123,8 @@ export type ConfigResult = {
 
 export type EmbedTestReport = {
   ocr: OcrVerdict
+  /** sha256 du PDF testé — renvoyé au client pour vérifier l'identité au refine. */
+  fileHash: string
   /** Config indices sorted best-first (failed configs excluded). */
   ranking: number[]
   recommendation: { configIndex: number; difySettings: string; rationale: string }

@@ -64,6 +64,7 @@ describe('EmbedTestAdmin', () => {
       results: [{ index: 0, score: 8, issues: [], summary: 's', chunkCount: 3 }],
       report: {
         ocr: { verdict: 'text_ok', reason: 'r', coverage: 0.9 },
+        fileHash: 'hash',
         ranking: [0],
         recommendation: { configIndex: 0, difySettings: 's', rationale: 'r' },
         usage: { inputTokens: 1, outputTokens: 2 },
