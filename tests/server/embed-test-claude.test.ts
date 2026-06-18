@@ -1,7 +1,9 @@
 import { describe, expect, test, vi } from 'vitest'
 
 import {
+  CONFIG_PROPERTIES,
   EMBED_TEST_MODELS,
+  OCR_TOOL_SCHEMA,
   judgeConfig,
   ocrCompare,
   proposeConfigs,
@@ -55,6 +57,24 @@ const validConfig = {
   overlapTokens: 128,
   preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
 }
+
+describe('tool schema bounds (E-5)', () => {
+  test('OCR coverage is bounded to [0,1]', () => {
+    const props = OCR_TOOL_SCHEMA.properties as Record<string, Record<string, unknown>>
+    const cov = props.coverage
+    expect(cov.minimum).toBe(0)
+    expect(cov.maximum).toBe(1)
+  })
+  test('maxTokens is bounded 100..4000', () => {
+    const mt = CONFIG_PROPERTIES.maxTokens as Record<string, unknown>
+    expect(mt.minimum).toBe(100)
+    expect(mt.maximum).toBe(4000)
+  })
+  test('overlapTokens has a non-negative minimum', () => {
+    const ot = CONFIG_PROPERTIES.overlapTokens as Record<string, unknown>
+    expect(ot.minimum).toBe(0)
+  })
+})
 
 describe('model map', () => {
   test('exact model ids', () => {
