@@ -17,7 +17,7 @@ export default async function ProfilPage() {
         Bonjour {firstName}.
       </h1>
       <p className="mt-4 max-w-[420px] text-[15.5px] leading-[1.6] text-sub">
-        Gérez votre compte Cockpit.
+        Gérez votre compte FormA+Super.
       </p>
       <div className="mt-8 flex flex-col items-start gap-4">
         <Link

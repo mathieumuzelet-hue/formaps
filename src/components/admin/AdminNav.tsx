@@ -59,7 +59,7 @@ export function AdminNav() {
         className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-[13.5px] font-medium text-sub hover:bg-sand/50"
       >
         <Icon name="chevronL" size={16} />
-        Retour au cockpit
+        Retour à FormA+Super
       </Link>
     </aside>
   )

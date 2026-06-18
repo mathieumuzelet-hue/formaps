@@ -11,7 +11,7 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "Cockpit — A⁺SUPER",
+  title: "FormA+Super",
   description:
     "Portail interne A⁺SUPER pour accompagner la bascule Auchan → Intermarché : formations, repères et assistant BRAIN.",
 };

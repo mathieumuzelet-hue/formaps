@@ -4,7 +4,7 @@ export default function NotFound() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-5 py-24 text-center md:px-10">
       <div className="mb-4 text-[13px] font-bold uppercase tracking-[0.04em] text-red">
-        Cockpit
+        FormA+Super
       </div>
       <h1 className="font-serif text-[27px] font-medium leading-[1.05] tracking-[-0.02em] md:text-[38px]">
         Page introuvable.

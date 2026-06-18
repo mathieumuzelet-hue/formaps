@@ -7,7 +7,7 @@ export default function ChangePasswordPage() {
         Mon compte
       </h1>
       <p className="mt-3 text-[14.5px] text-sub">
-        Changez votre mot de passe de connexion au Cockpit.
+        Changez votre mot de passe de connexion à FormA+Super.
       </p>
       <ChangePasswordForm />
     </div>
