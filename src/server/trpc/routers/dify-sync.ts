@@ -43,6 +43,11 @@ export const difySyncRouter = router({
       const csv = buildFaqCsv(draft.items)
       const name = draft.sourceFilename.replace(/\.[^.]+$/, '') + '.csv'
       const existing = await getSyncRow(ctx.db, 'faq_draft', input.draftId)
+      // On persiste le dataset RÉELLEMENT visé : un update cible le dataset du doc
+      // existant, un create le dataset courant. Sinon, si DIFY_QA_DATASET_ID a
+      // changé après le 1er sync, le registre pointerait vers un dataset où le doc
+      // n'existe pas (et un unsync supprimerait au mauvais endroit).
+      const targetDatasetId = existing?.difyDocumentId ? existing.datasetId : datasetId
 
       try {
         let documentId: string
@@ -55,13 +60,13 @@ export const difySyncRouter = router({
           ;({ documentId } = await createQaCsvDocument({ datasetId, name, csv }))
         }
         await upsertSync(ctx.db, {
-          sourceType: 'faq_draft', sourceId: input.draftId, datasetId,
+          sourceType: 'faq_draft', sourceId: input.draftId, datasetId: targetDatasetId,
           difyDocumentId: documentId, status: 'synced',
         })
         return { documentId }
       } catch (err) {
         await upsertSync(ctx.db, {
-          sourceType: 'faq_draft', sourceId: input.draftId, datasetId,
+          sourceType: 'faq_draft', sourceId: input.draftId, datasetId: targetDatasetId,
           difyDocumentId: existing?.difyDocumentId ?? null, status: 'failed',
           error: err instanceof Error ? err.message : String(err),
         })

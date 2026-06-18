@@ -74,15 +74,17 @@ test('pushFaq re-push updates the existing document via update-by-file', async (
   selectWhere.mockResolvedValue([
     { id: DRAFT_ID, sourceFilename: 'f.pdf', items: [{ id: 'i1', question: 'Q', answer: 'R', origin: 'generated' }] },
   ])
-  getSyncRow.mockResolvedValue({ difyDocumentId: 'old-doc', datasetId: 'qa-ds' })
+  // Doc existant dans un dataset différent du DIFY_QA_DATASET_ID courant : update
+  // doit cibler l'ancien dataset ET le registre doit le refléter (pas l'env).
+  getSyncRow.mockResolvedValue({ difyDocumentId: 'old-doc', datasetId: 'old-ds' })
   await caller().difySync.pushFaq({ draftId: DRAFT_ID })
   expect(updateQaCsvDocument).toHaveBeenCalledWith(
-    expect.objectContaining({ datasetId: 'qa-ds', documentId: 'old-doc', name: 'f.csv' }),
+    expect.objectContaining({ datasetId: 'old-ds', documentId: 'old-doc', name: 'f.csv' }),
   )
   expect(createQaCsvDocument).not.toHaveBeenCalled()
   expect(upsertSync).toHaveBeenCalledWith(
     expect.anything(),
-    expect.objectContaining({ status: 'synced', difyDocumentId: 'old-doc' }),
+    expect.objectContaining({ status: 'synced', difyDocumentId: 'old-doc', datasetId: 'old-ds' }),
   )
 })
 
