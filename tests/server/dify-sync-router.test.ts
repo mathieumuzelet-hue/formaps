@@ -3,15 +3,17 @@ import { beforeEach, expect, test, vi } from 'vitest'
 vi.mock('@/server/auth', () => ({ auth: vi.fn() }))
 vi.mock('@/server/db', () => ({ db: {} }))
 
-const { createQaDocument, deleteDocument, createDocumentByFile, updateDocumentByFile } = vi.hoisted(() => ({
-  createQaDocument: vi.fn(),
+const { createQaCsvDocument, updateQaCsvDocument, deleteDocument, createDocumentByFile, updateDocumentByFile } = vi.hoisted(() => ({
+  createQaCsvDocument: vi.fn(),
+  updateQaCsvDocument: vi.fn(),
   deleteDocument: vi.fn(),
   createDocumentByFile: vi.fn(),
   updateDocumentByFile: vi.fn(),
 }))
 vi.mock('@/server/dify/knowledge', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  createQaDocument,
+  createQaCsvDocument,
+  updateQaCsvDocument,
   deleteDocument,
   createDocumentByFile,
   updateDocumentByFile,
@@ -49,33 +51,44 @@ beforeEach(() => {
   getSyncRow.mockResolvedValue(null)
 })
 
-test('pushFaq pushes segments and upserts synced', async () => {
+test('pushFaq uploads a Q&A CSV via create-by-file and upserts synced', async () => {
   selectWhere.mockResolvedValue([
     { id: DRAFT_ID, sourceFilename: 'faq.pdf', items: [{ id: 'i1', question: 'Q', answer: 'R', origin: 'generated' }] },
   ])
-  createQaDocument.mockResolvedValue({ documentId: 'doc-1' })
+  createQaCsvDocument.mockResolvedValue({ documentId: 'doc-1' })
   const out = await caller().difySync.pushFaq({ draftId: DRAFT_ID })
   expect(out).toEqual({ documentId: 'doc-1' })
-  expect(createQaDocument).toHaveBeenCalledWith(
-    expect.objectContaining({ datasetId: 'qa-ds', name: 'faq.pdf', segments: [{ content: 'Q', answer: 'R' }] }),
-  )
+  const arg = createQaCsvDocument.mock.calls[0][0]
+  expect(arg.datasetId).toBe('qa-ds')
+  expect(arg.name).toBe('faq.csv') // extension normalisée en .csv
+  expect(arg.csv).toContain('question,answer')
+  expect(arg.csv).toContain('Q,R')
+  expect(updateQaCsvDocument).not.toHaveBeenCalled()
   expect(upsertSync).toHaveBeenCalledWith(
     expect.anything(),
     expect.objectContaining({ sourceType: 'faq_draft', sourceId: DRAFT_ID, status: 'synced', difyDocumentId: 'doc-1' }),
   )
 })
 
-test('pushFaq re-push deletes the previous document first', async () => {
-  selectWhere.mockResolvedValue([{ id: DRAFT_ID, sourceFilename: 'f.pdf', items: [] }])
+test('pushFaq re-push updates the existing document via update-by-file', async () => {
+  selectWhere.mockResolvedValue([
+    { id: DRAFT_ID, sourceFilename: 'f.pdf', items: [{ id: 'i1', question: 'Q', answer: 'R', origin: 'generated' }] },
+  ])
   getSyncRow.mockResolvedValue({ difyDocumentId: 'old-doc', datasetId: 'qa-ds' })
-  createQaDocument.mockResolvedValue({ documentId: 'new-doc' })
   await caller().difySync.pushFaq({ draftId: DRAFT_ID })
-  expect(deleteDocument).toHaveBeenCalledWith(expect.objectContaining({ datasetId: 'qa-ds', documentId: 'old-doc' }))
+  expect(updateQaCsvDocument).toHaveBeenCalledWith(
+    expect.objectContaining({ datasetId: 'qa-ds', documentId: 'old-doc', name: 'f.csv' }),
+  )
+  expect(createQaCsvDocument).not.toHaveBeenCalled()
+  expect(upsertSync).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ status: 'synced', difyDocumentId: 'old-doc' }),
+  )
 })
 
 test('pushFaq on client failure upserts failed and rethrows', async () => {
   selectWhere.mockResolvedValue([{ id: DRAFT_ID, sourceFilename: 'f.pdf', items: [] }])
-  createQaDocument.mockRejectedValue(new Error('boom'))
+  createQaCsvDocument.mockRejectedValue(new Error('boom'))
   await expect(caller().difySync.pushFaq({ draftId: DRAFT_ID })).rejects.toThrow()
   expect(upsertSync).toHaveBeenCalledWith(
     expect.anything(),

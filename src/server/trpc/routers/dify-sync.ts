@@ -5,10 +5,10 @@ import { eq, inArray, and } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { faqDrafts, difySync, formationDocuments } from '@/server/db/schema'
-import { faqItemsToSegments } from '@/lib/dify/faq-segments'
+import { buildFaqCsv } from '@/lib/admin/faq-csv'
 import {
-  createQaDocument,
-  deleteDocument,
+  createQaCsvDocument,
+  updateQaCsvDocument,
   createDocumentByFile,
   updateDocumentByFile,
 } from '@/server/dify/knowledge'
@@ -37,22 +37,23 @@ export const difySyncRouter = router({
         .where(eq(faqDrafts.id, input.draftId))
       if (!draft) throw new TRPCError({ code: 'NOT_FOUND' })
 
-      // Re-push : on supprime l'ancien document Dify avant de recréer (best-effort).
+      // Dify ingère les Q&A via un CSV `question,answer` uploadé en doc_form
+      // qa_model (l'API segments renvoie 404 sur ce type de dataset). Même format
+      // que l'export FAQ Builder. Nom de fichier en .csv pour que Dify le parse.
+      const csv = buildFaqCsv(draft.items)
+      const name = draft.sourceFilename.replace(/\.[^.]+$/, '') + '.csv'
       const existing = await getSyncRow(ctx.db, 'faq_draft', input.draftId)
-      if (existing?.difyDocumentId) {
-        try {
-          await deleteDocument({ datasetId: existing.datasetId, documentId: existing.difyDocumentId })
-        } catch (err) {
-          console.error('[dify-sync] delete ancien doc FAQ a échoué (on continue):', err)
-        }
-      }
 
       try {
-        const { documentId } = await createQaDocument({
-          datasetId,
-          name: draft.sourceFilename,
-          segments: faqItemsToSegments(draft.items),
-        })
+        let documentId: string
+        if (existing?.difyDocumentId) {
+          await updateQaCsvDocument({
+            datasetId: existing.datasetId, documentId: existing.difyDocumentId, name, csv,
+          })
+          documentId = existing.difyDocumentId
+        } else {
+          ;({ documentId } = await createQaCsvDocument({ datasetId, name, csv }))
+        }
         await upsertSync(ctx.db, {
           sourceType: 'faq_draft', sourceId: input.draftId, datasetId,
           difyDocumentId: documentId, status: 'synced',
@@ -61,7 +62,7 @@ export const difySyncRouter = router({
       } catch (err) {
         await upsertSync(ctx.db, {
           sourceType: 'faq_draft', sourceId: input.draftId, datasetId,
-          difyDocumentId: null, status: 'failed',
+          difyDocumentId: existing?.difyDocumentId ?? null, status: 'failed',
           error: err instanceof Error ? err.message : String(err),
         })
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'dify_push_failed' })

@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   createDocumentByFile,
-  createQaDocument,
+  createQaCsvDocument,
   deleteDocument,
   DifyKnowledgeError,
   knowledgeConfig,
   updateDocumentByFile,
+  updateQaCsvDocument,
 } from '@/server/dify/knowledge'
 
 beforeEach(() => {
@@ -13,6 +14,17 @@ beforeEach(() => {
   process.env.DIFY_DATASET_API_KEY = 'dataset-key'
 })
 afterEach(() => vi.restoreAllMocks())
+
+describe('DifyKnowledgeError', () => {
+  test('includes the (truncated) response body in the message for observability', () => {
+    const err = new DifyKnowledgeError(404, 'Dataset not found')
+    expect(err.message).toBe('Dify knowledge API failed: 404 - Dataset not found')
+    expect(err.status).toBe(404)
+  })
+  test('omits the separator when body is empty', () => {
+    expect(new DifyKnowledgeError(500, '').message).toBe('Dify knowledge API failed: 500')
+  })
+})
 
 describe('knowledgeConfig', () => {
   test('strips trailing /v1 and reads dataset key', () => {
@@ -28,37 +40,70 @@ describe('knowledgeConfig', () => {
   })
 })
 
-describe('createQaDocument', () => {
-  test('creates a document then posts Q&A segments, returns documentId', async () => {
-    const calls: Array<{ url: string; init: RequestInit }> = []
+describe('createQaCsvDocument', () => {
+  test('uploads the CSV via create-by-file with doc_form qa_model, returns documentId', async () => {
+    let captured: { url: string; init: RequestInit } | null = null
     const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
-      calls.push({ url, init })
-      if (url.includes('/document/create-by-text')) {
-        return new Response(JSON.stringify({ document: { id: 'doc-1' } }), { status: 200 })
-      }
-      return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      captured = { url, init }
+      return new Response(JSON.stringify({ document: { id: 'doc-1' } }), { status: 200 })
     }) as unknown as typeof fetch
 
-    const out = await createQaDocument({
+    const out = await createQaCsvDocument({
       datasetId: 'ds-1',
-      name: 'faq.pdf',
-      segments: [{ content: 'Q ?', answer: 'R.' }],
+      name: 'faq.csv',
+      csv: 'question,answer\r\nQ ?,R.\r\n',
       fetchImpl,
     })
     expect(out).toEqual({ documentId: 'doc-1' })
-    expect(calls[0].url).toBe('https://dify.example.com/v1/datasets/ds-1/document/create-by-text')
-    expect(calls[1].url).toBe('https://dify.example.com/v1/datasets/ds-1/documents/doc-1/segments')
-    const seg = JSON.parse(calls[1].init.body as string)
-    expect(seg.segments).toEqual([{ content: 'Q ?', answer: 'R.' }])
-    const auth = (calls[0].init.headers as Record<string, string>).Authorization
-    expect(auth).toBe('Bearer dataset-key')
+    expect(captured!.url).toBe('https://dify.example.com/v1/datasets/ds-1/document/create-by-file')
+    expect(captured!.init.body).toBeInstanceOf(FormData)
+    const fd = captured!.init.body as FormData
+    const data = JSON.parse(fd.get('data') as string)
+    expect(data.doc_form).toBe('qa_model')
+    expect(data.name).toBe('faq.csv')
+    const file = fd.get('file') as File
+    expect(file).toBeInstanceOf(Blob)
+    expect(file.name).toBe('faq.csv')
+    expect(await file.text()).toBe('question,answer\r\nQ ?,R.\r\n')
+    // pas de Content-Type manuel : FormData pose le boundary lui-même
+    expect((captured!.init.headers as Record<string, string>)['Content-Type']).toBeUndefined()
+    expect((captured!.init.headers as Record<string, string>).Authorization).toBe('Bearer dataset-key')
   })
 
   test('throws DifyKnowledgeError on non-ok', async () => {
     const fetchImpl = vi.fn(async () => new Response('boom', { status: 500 })) as unknown as typeof fetch
     await expect(
-      createQaDocument({ datasetId: 'ds', name: 'n', segments: [], fetchImpl }),
+      createQaCsvDocument({ datasetId: 'ds', name: 'n.csv', csv: 'question,answer\r\n', fetchImpl }),
     ).rejects.toBeInstanceOf(DifyKnowledgeError)
+  })
+
+  test('throws when response has no document id', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 })) as unknown as typeof fetch
+    await expect(
+      createQaCsvDocument({ datasetId: 'ds', name: 'n.csv', csv: 'x', fetchImpl }),
+    ).rejects.toBeInstanceOf(DifyKnowledgeError)
+  })
+})
+
+describe('updateQaCsvDocument', () => {
+  test('uploads the CSV via update-by-file with doc_form qa_model', async () => {
+    let captured: { url: string; init: RequestInit } | null = null
+    const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
+      captured = { url, init }
+      return new Response(JSON.stringify({ document: { id: 'doc-1' } }), { status: 200 })
+    }) as unknown as typeof fetch
+
+    await updateQaCsvDocument({
+      datasetId: 'ds-1',
+      documentId: 'doc-1',
+      name: 'faq.csv',
+      csv: 'question,answer\r\nQ ?,R.\r\n',
+      fetchImpl,
+    })
+    expect(captured!.url).toBe('https://dify.example.com/v1/datasets/ds-1/documents/doc-1/update-by-file')
+    const fd = captured!.init.body as FormData
+    expect(JSON.parse(fd.get('data') as string).doc_form).toBe('qa_model')
+    expect((fd.get('file') as File).name).toBe('faq.csv')
   })
 })
 
