@@ -7,6 +7,8 @@
  */
 import { z } from 'zod'
 
+import { normalizeSeparator } from '@/lib/embed-test/separator'
+
 export const EMBED_TEST_MODEL_KEYS = ['sonnet', 'opus'] as const
 export type EmbedTestModelKey = (typeof EMBED_TEST_MODEL_KEYS)[number]
 
@@ -48,7 +50,7 @@ export type ChunkConfig = z.infer<typeof chunkConfigSchema>
 export function configKey(c: ChunkConfig): string {
   return JSON.stringify([
     c.mode,
-    c.separator,
+    normalizeSeparator(c.separator),
     c.maxTokens,
     c.overlapTokens,
     c.parentMaxTokens ?? null,

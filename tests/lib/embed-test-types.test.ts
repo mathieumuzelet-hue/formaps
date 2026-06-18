@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { chunkConfigSchema, configKey, refinePayloadSchema } from '@/lib/embed-test/types'
+import type { ChunkConfig } from '@/lib/embed-test/types'
 
 const valid = {
   label: 'Standard 1024',
@@ -99,5 +100,25 @@ describe('configKey', () => {
         childMaxTokens: 400,
       } as never),
     )
+  })
+})
+
+const base: ChunkConfig = {
+  label: 'x',
+  mode: 'general',
+  separator: '\\n\\n',
+  maxTokens: 200,
+  overlapTokens: 0,
+  preprocessing: { removeExtraSpaces: true, removeUrlsEmails: false },
+}
+
+describe('configKey — separator normalization', () => {
+  test('escaped and real separators yield the SAME key', () => {
+    expect(configKey({ ...base, separator: '\\n\\n' })).toBe(
+      configKey({ ...base, separator: '\n\n' }),
+    )
+  })
+  test('structurally different configs yield different keys', () => {
+    expect(configKey(base)).not.toBe(configKey({ ...base, maxTokens: 300 }))
   })
 })
