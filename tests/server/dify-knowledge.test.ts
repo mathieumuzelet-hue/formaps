@@ -60,6 +60,7 @@ describe('createQaCsvDocument', () => {
     const fd = captured!.init.body as FormData
     const data = JSON.parse(fd.get('data') as string)
     expect(data.doc_form).toBe('qa_model')
+    expect(data.doc_language).toBe('French') // défaut : Dify génère les Q&A dans cette langue
     expect(data.name).toBe('faq.csv')
     const file = fd.get('file') as File
     expect(file).toBeInstanceOf(Blob)
@@ -68,6 +69,19 @@ describe('createQaCsvDocument', () => {
     // pas de Content-Type manuel : FormData pose le boundary lui-même
     expect((captured!.init.headers as Record<string, string>)['Content-Type']).toBeUndefined()
     expect((captured!.init.headers as Record<string, string>).Authorization).toBe('Bearer dataset-key')
+  })
+
+  test('doc_language is overridable via DIFY_QA_DOC_LANGUAGE', async () => {
+    process.env.DIFY_QA_DOC_LANGUAGE = 'Français'
+    let captured: RequestInit | null = null
+    const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      captured = init
+      return new Response(JSON.stringify({ document: { id: 'd' } }), { status: 200 })
+    }) as unknown as typeof fetch
+    await createQaCsvDocument({ datasetId: 'ds', name: 'n.csv', csv: 'question,answer\r\n', fetchImpl })
+    const data = JSON.parse((captured!.body as FormData).get('data') as string)
+    expect(data.doc_language).toBe('Français')
+    delete process.env.DIFY_QA_DOC_LANGUAGE
   })
 
   test('throws DifyKnowledgeError on non-ok', async () => {
