@@ -1,5 +1,5 @@
 /**
- * File-type sniffing by magic bytes — the MIME `file.type` is client-controlled,
+ * File-type sniffing by magic bytes - the MIME `file.type` is client-controlled,
  * so every upload route also checks the real signature. Single source of truth
  * shared by all upload routes (embed-test, faq-builder, formation documents).
  */

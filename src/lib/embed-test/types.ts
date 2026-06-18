@@ -123,7 +123,7 @@ export type ConfigResult = {
 
 export type EmbedTestReport = {
   ocr: OcrVerdict
-  /** sha256 du PDF testé — renvoyé au client pour vérifier l'identité au refine. */
+  /** sha256 du PDF testé - renvoyé au client pour vérifier l'identité au refine. */
   fileHash: string
   /** Config indices sorted best-first (failed configs excluded). */
   ranking: number[]

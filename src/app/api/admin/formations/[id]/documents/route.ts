@@ -60,7 +60,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return Response.json({ error: 'file_too_large' }, { status: 413 })
     }
 
-    // The MIME `file.type` is client-controlled — verify the real %PDF
+    // The MIME `file.type` is client-controlled - verify the real %PDF
     // signature BEFORE any DB row or disk write, to reject early.
     buffer = new Uint8Array(await file.arrayBuffer())
     if (!isPdf(buffer)) {

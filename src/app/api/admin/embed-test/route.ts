@@ -75,7 +75,7 @@ export async function POST(req: Request): Promise<Response> {
     return json({ error: 'invalid_form' }, 400)
   }
 
-  // The MIME `file.type` is client-controlled — verify the real %PDF signature.
+  // The MIME `file.type` is client-controlled - verify the real %PDF signature.
   const buffer = new Uint8Array(await file.arrayBuffer())
   if (!isPdf(buffer)) return json({ error: 'invalid_type' }, 415)
 

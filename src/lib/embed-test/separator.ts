@@ -4,7 +4,7 @@
  * types.ts ET chunker.ts sans cycle.
  */
 
-/** Claude proposes separators as escaped strings ("\\n\\n") — unescape them. */
+/** Claude proposes separators as escaped strings ("\\n\\n") - unescape them. */
 export function normalizeSeparator(separator: string): string {
   return separator.replace(/\\n/g, '\n').replace(/\\t/g, '\t')
 }
