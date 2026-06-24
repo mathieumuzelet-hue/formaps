@@ -38,7 +38,7 @@ export default async function ActualitesPage() {
             Aucune actualité publiée pour le moment.
           </p>
           <p className="mt-2 text-[13px] uppercase tracking-[0.15em] text-faint">
-            Revenez bientôt — la rédaction prépare sa prochaine édition.
+            Revenez bientôt - la rédaction prépare sa prochaine édition.
           </p>
         </div>
       ) : (
@@ -89,8 +89,8 @@ function Featured({ article }: { article: Article }) {
               label={'à la une'}
               height={300}
               radius={0}
-              tone="#EFE6D6"
-              accent="#D6C9B2"
+              tone="#F3E9D7"
+              accent="#D9C9AE"
             />
           )}
         </div>
