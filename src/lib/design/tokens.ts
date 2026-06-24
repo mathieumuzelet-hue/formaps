@@ -1,8 +1,8 @@
 export const COLORS = {
-  bg: '#F4EEE3', surface: '#FBF7EF', card: '#FFFFFF',
-  ink: '#221C16', sub: '#8A7F6E', faint: '#B7AD9A',
-  line: '#E4DBCB', red: '#C8102E', redSoft: '#F4E5E1',
-  redInk: '#A20D24', sand: '#EADFC9',
+  bg: '#FFFAEF', surface: '#FFFFFF', card: '#FFFFFF', panel: '#FBF4E6',
+  ink: '#511227', violine: '#511227', sub: '#7C606A', faint: '#B3A1A8',
+  line: '#EBDFCD', red: '#E0001A', redSoft: '#FBE7E2', redInk: '#511227',
+  cream: '#FFFAEF', coral: '#FF6A78', sand: '#F1E7D4',
 } as const
 
 export const STAGES = ['Préparation', 'Formation', 'Tests', 'Bascule', 'Ouverture'] as const
