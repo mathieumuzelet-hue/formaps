@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { Icon } from '@/components/ui/Icon'
+import { COLORS } from '@/lib/design/tokens'
 
 export type FormationCardData = {
   id: string
@@ -29,10 +30,10 @@ function CardInner({ formation, index }: FormationCardProps) {
         {String(index + 1).padStart(2, '0')}
       </div>
       <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full bg-redsoft">
-        <Icon name={formation.icon} size={23} color="#A20D24" strokeWidth={1.8} />
+        <Icon name={formation.icon} size={23} color={COLORS.red} strokeWidth={1.8} />
       </div>
       <div>
-        <div className="font-serif text-[18px] font-medium">{formation.name}</div>
+        <div className="font-serif text-[18px] font-bold">{formation.name}</div>
         <div className="mt-[3px] text-[12.5px] leading-[1.4] text-sub">
           {formation.description}
         </div>
@@ -45,7 +46,7 @@ function CardInner({ formation, index }: FormationCardProps) {
         <Icon
           name={isPdf ? 'download' : 'external'}
           size={16}
-          color={isPdf ? '#A20D24' : '#8A7F6E'}
+          color={isPdf ? COLORS.red : COLORS.sub}
         />
         {isPdf ? 'Télécharger le PDF' : 'Ouvrir dans SharePoint'}
       </div>
