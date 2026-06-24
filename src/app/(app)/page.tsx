@@ -5,6 +5,7 @@ import { getServerCaller } from '@/server/trpc/server'
 import { joursLabel, plusQuePrefix } from '@/lib/home-format'
 import { BRoute } from '@/components/route/BRoute'
 import { Icon } from '@/components/ui/Icon'
+import { COLORS } from '@/lib/design/tokens'
 
 export default async function HomePage() {
   const session = await auth()
@@ -24,7 +25,7 @@ export default async function HomePage() {
         <div className="mb-4 text-[13px] font-bold uppercase tracking-[0.04em] text-red">
           Votre trajet
         </div>
-        <h1 className="font-serif text-[27px] font-medium leading-[1.05] tracking-[-0.02em] md:text-[38px]">
+        <h1 className="font-serif text-[27px] font-extrabold leading-[1.05] tracking-[-0.02em] md:text-[38px]">
           Bonjour {firstName}.
         </h1>
         <p className="mt-4 max-w-[440px] text-[15.5px] leading-[1.6] text-sub">
@@ -43,7 +44,7 @@ export default async function HomePage() {
           <div className="mb-1.5 text-[13px] font-bold uppercase tracking-[0.04em] text-red">
             Votre trajet · Magasin de {store.name.toUpperCase()}
           </div>
-          <h1 className="font-serif text-[27px] font-medium leading-[1.05] tracking-[-0.02em] md:text-[38px]">
+          <h1 className="font-serif text-[27px] font-extrabold leading-[1.05] tracking-[-0.02em] md:text-[38px]">
             Bonjour {firstName}, {plusQuePrefix(store.joursRestants)}
             <span className="text-red">{joursLabel(store.joursRestants)}</span>.
           </h1>
@@ -73,9 +74,9 @@ export default async function HomePage() {
           className="relative overflow-hidden rounded-[18px] border border-line bg-card px-[26px] py-6 text-ink"
         >
           <div className="mb-4 flex h-[50px] w-[50px] items-center justify-center rounded-full bg-redsoft">
-            <Icon name="book" size={26} color="#A20D24" strokeWidth={1.8} />
+            <Icon name="book" size={26} color={COLORS.red} strokeWidth={1.8} />
           </div>
-          <div className="mb-[7px] font-serif text-[23px] font-medium">
+          <div className="mb-[7px] font-serif text-[23px] font-extrabold">
             Espace Formation
           </div>
           <p className="mb-[18px] max-w-[380px] text-[14px] leading-[1.55] text-sub">
@@ -84,7 +85,7 @@ export default async function HomePage() {
           </p>
           <div className="inline-flex items-center gap-2 text-[14px] font-bold text-redink">
             Continuer le parcours{' '}
-            <Icon name="arrowR" size={17} color="#A20D24" />
+            <Icon name="arrowR" size={17} color={COLORS.violine} />
           </div>
         </Link>
 
@@ -95,7 +96,7 @@ export default async function HomePage() {
           <div className="mb-4 flex h-[50px] w-[50px] items-center justify-center rounded-full bg-white/[0.12]">
             <Icon name="brain" size={26} color="#fff" strokeWidth={1.8} />
           </div>
-          <div className="mb-[7px] font-serif text-[23px] font-medium">
+          <div className="mb-[7px] font-serif text-[23px] font-extrabold">
             Assistant BRAIN
           </div>
           <p className="mb-[18px] max-w-[380px] text-[14px] leading-[1.55] text-white/[0.78]">
@@ -110,7 +111,7 @@ export default async function HomePage() {
       {/* "À reprendre" strip */}
       <div>
         <div className="mb-3 flex items-baseline">
-          <div className="font-serif text-[19px] font-medium">À reprendre</div>
+          <div className="font-serif text-[19px] font-extrabold">À reprendre</div>
           <Link
             href="/formations"
             className="ml-auto text-[13px] font-bold text-redink"
@@ -128,7 +129,7 @@ export default async function HomePage() {
                 className="flex items-center gap-[13px] rounded-[14px] border border-line bg-card px-[18px] py-4"
               >
                 <div className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[10px] bg-redsoft">
-                  <Icon name={f.icon} size={22} color="#A20D24" />
+                  <Icon name={f.icon} size={22} color={COLORS.red} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[14.5px] font-bold">{f.name}</div>

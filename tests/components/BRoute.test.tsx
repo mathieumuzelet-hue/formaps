@@ -10,3 +10,8 @@ test('compact masque les libellés', () => {
   render(<BRoute current={1} compact />)
   expect(screen.queryByText('Formation')).not.toBeInTheDocument()
 })
+test('onDark conserve les libellés', () => {
+  render(<BRoute current={1} onDark />)
+  expect(screen.getByText('Formation')).toBeInTheDocument()
+  expect(screen.getByText('Préparation')).toBeInTheDocument()
+})

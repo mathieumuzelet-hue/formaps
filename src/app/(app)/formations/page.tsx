@@ -8,7 +8,7 @@ export default async function FormationsPage() {
   return (
     <div className="px-5 py-7 md:px-10">
       <div className="mb-[22px] max-w-[620px]">
-        <h1 className="font-serif text-[34px] font-medium tracking-[-0.02em]">
+        <h1 className="font-serif text-[34px] font-extrabold tracking-[-0.02em]">
           Espace Formation
         </h1>
         <p className="mt-2 text-[14.5px] leading-[1.5] text-sub">

@@ -6,6 +6,7 @@ import { getServerCaller } from '@/server/trpc/server'
 import { Icon } from '@/components/ui/Icon'
 import { ImgSlot } from '@/components/ui/ImgSlot'
 import { RefreshOnFocus } from '@/components/formation/RefreshOnFocus'
+import { COLORS } from '@/lib/design/tokens'
 
 export default async function FormationDetailPage({
   params,
@@ -38,7 +39,7 @@ export default async function FormationDetailPage({
       <div>
         {/* Breadcrumb */}
         <div className="mb-4 flex w-fit items-center gap-[7px] text-[13px] text-sub">
-          <Icon name="chevronL" size={15} color="#8A7F6E" />
+          <Icon name="chevronL" size={15} color={COLORS.sub} />
           <Link href="/formations" className="font-semibold">
             Espace Formation
           </Link>
@@ -49,7 +50,7 @@ export default async function FormationDetailPage({
         <div className="mb-2 text-[12.5px] font-bold uppercase tracking-[0.05em] text-red">
           {formation.tag.toUpperCase()}
         </div>
-        <h1 className="font-serif text-[28px] font-medium leading-[1.05] tracking-[-0.02em] md:text-[40px]">
+        <h1 className="font-serif text-[28px] font-extrabold leading-[1.05] tracking-[-0.02em] md:text-[40px]">
           {formation.name}
         </h1>
         <p className="my-[14px] mb-[18px] max-w-[560px] font-serif text-[17.5px] leading-[1.55] text-sub">
@@ -59,11 +60,11 @@ export default async function FormationDetailPage({
         {/* Meta row */}
         <div className="flex gap-[18px] border-b border-line pb-5 text-[13px] text-sub">
           <span className="inline-flex items-center gap-1.5">
-            <Icon name="file" size={15} color="#8A7F6E" /> {documents.length}{' '}
+            <Icon name="file" size={15} color={COLORS.sub} /> {documents.length}{' '}
             documents
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <Icon name="clock" size={15} color="#8A7F6E" /> ~45 min
+            <Icon name="clock" size={15} color={COLORS.sub} /> ~45 min
           </span>
           <span>Mis à jour récemment</span>
         </div>
@@ -81,7 +82,7 @@ export default async function FormationDetailPage({
                 rel="noopener noreferrer"
                 className="mt-4 inline-flex items-center gap-2 text-[13.5px] font-bold text-redink"
               >
-                <Icon name="external" size={16} color="#A20D24" /> Ouvrir sur
+                <Icon name="external" size={16} color={COLORS.red} /> Ouvrir sur
                 SharePoint
               </a>
             )}
@@ -93,12 +94,12 @@ export default async function FormationDetailPage({
                 key={d.id}
                 className="flex items-center gap-4 border-b border-line px-0.5 py-[15px]"
               >
-                <span className="w-8 font-serif text-[24px] font-medium text-faint">
+                <span className="w-8 font-serif text-[24px] font-extrabold text-faint">
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-[9px]">
-                    <span className="font-serif text-[17px] font-medium">
+                    <span className="font-serif text-[17px] font-bold">
                       {d.title}
                     </span>
                     {d.isNew && (
@@ -118,13 +119,13 @@ export default async function FormationDetailPage({
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-[13.5px] font-bold text-redink"
                   >
-                    <Icon name="eye" size={17} color="#A20D24" /> Consulter
+                    <Icon name="eye" size={17} color={COLORS.red} /> Consulter
                   </a>
                   <a
                     href={`${d.fileUrl}?download=1`}
                     className="inline-flex items-center gap-2 text-[13.5px] font-bold text-sub"
                   >
-                    <Icon name="download" size={17} color="#8A7F6E" /> Télécharger
+                    <Icon name="download" size={17} color={COLORS.sub} /> Télécharger
                   </a>
                 </div>
               </div>
@@ -147,8 +148,8 @@ export default async function FormationDetailPage({
             label={'visuel de couverture\n(photo caisse / capture)'}
             height={170}
             radius={16}
-            tone="#EFE6D6"
-            accent="#D6C9B2"
+            tone="#F3E9D7"
+            accent="#D9C9AE"
           />
         )}
 
@@ -156,7 +157,7 @@ export default async function FormationDetailPage({
         <div className="rounded-[16px] border border-line bg-surface px-5 py-[18px]">
           <div className="mb-1.5 text-[13px] font-bold text-sub">PROGRESSION</div>
           <div className="flex items-baseline gap-2">
-            <span className="font-serif text-[32px] font-medium">{percent}%</span>
+            <span className="font-serif text-[32px] font-extrabold">{percent}%</span>
             <span className="text-[13px] text-sub">du parcours</span>
           </div>
           <div className="mt-[10px] h-[6px] rounded-[3px] bg-line">
@@ -172,13 +173,13 @@ export default async function FormationDetailPage({
               rel="noopener noreferrer"
               className="mt-4 flex items-center gap-[9px] border-t border-line pt-[14px] text-[13px] font-bold text-sub"
             >
-              <Icon name="external" size={16} color="#8A7F6E" /> Ouvrir sur
+              <Icon name="external" size={16} color={COLORS.sub} /> Ouvrir sur
               SharePoint
             </a>
           )}
           {percent >= 100 ? (
             <div className="mt-4 flex items-center gap-2 border-t border-line pt-[14px] text-[13px] font-bold text-ink">
-              <Icon name="check" size={16} color="#A20D24" />
+              <Icon name="check" size={16} color={COLORS.red} />
               Formation terminée
             </div>
           ) : (
@@ -192,7 +193,7 @@ export default async function FormationDetailPage({
         {/* Related */}
         {related.length > 0 && (
           <div className="rounded-[16px] border border-line bg-surface px-5 py-[18px]">
-            <div className="mb-[10px] font-serif text-[18px] font-medium">
+            <div className="mb-[10px] font-serif text-[18px] font-extrabold">
               Pour aller plus loin
             </div>
             {related.map((t, i) => (
@@ -203,11 +204,11 @@ export default async function FormationDetailPage({
                   i ? 'border-t border-line' : ''
                 }`}
               >
-                <Icon name={t.icon} size={20} color="#A20D24" />
+                <Icon name={t.icon} size={20} color={COLORS.red} />
                 <span className="flex-1 text-[13.5px] font-semibold">
                   {t.name}
                 </span>
-                <Icon name="arrowR" size={16} color="#B7AD9A" />
+                <Icon name="arrowR" size={16} color={COLORS.faint} />
               </Link>
             ))}
           </div>

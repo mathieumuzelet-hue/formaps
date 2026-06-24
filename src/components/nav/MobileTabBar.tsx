@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { Icon } from '@/components/ui/Icon'
+import { COLORS } from '@/lib/design/tokens'
 
 const TABS: ReadonlyArray<readonly [href: string, icon: string, label: string]> =
   [
@@ -35,13 +36,13 @@ export function MobileTabBar() {
             href={href}
             aria-current={active ? 'page' : undefined}
             className={`flex flex-1 flex-col items-center gap-1 ${
-              active ? 'font-bold text-redink' : 'font-semibold text-faint'
+              active ? 'font-bold text-red' : 'font-semibold text-faint'
             }`}
           >
             <Icon
               name={icon}
               size={21}
-              color={active ? '#A20D24' : '#B7AD9A'}
+              color={active ? COLORS.red : COLORS.faint}
               strokeWidth={active ? 2 : 1.7}
             />
             <span className="text-[10.5px]">{label}</span>

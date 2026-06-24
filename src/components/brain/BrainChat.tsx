@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 
 import { FeedbackButtons } from '@/components/brain/FeedbackButtons'
 import { Icon } from '@/components/ui/Icon'
+import { COLORS } from '@/lib/design/tokens'
 import { groupExchanges } from '@/lib/brain/exchanges'
 import { BRAIN_SUGGESTIONS } from '@/lib/brain/suggestions'
 import { useBrainChat, type BrainMessage } from '@/lib/brain/useBrainChat'
@@ -85,14 +86,14 @@ function AiMessage({ message }: { message: BrainMessage }) {
                   <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full border-[1.5px] border-red text-[11px] font-extrabold text-red">
                     {i + 1}
                   </span>
-                  <Icon name="file" size={17} color="#8A7F6E" />
+                  <Icon name="file" size={17} color={COLORS.sub} />
                   <span className="text-[13.5px] font-bold">{s.doc}</span>
                   {meta && <span className="text-[12.5px] text-faint">{meta}</span>}
                   {expandable && (
                     <Icon
                       name="chevronD"
                       size={16}
-                      color="#8A7F6E"
+                      color={COLORS.sub}
                       className={`ml-auto transition-transform ${open ? 'rotate-180' : ''}`}
                     />
                   )}
@@ -139,7 +140,7 @@ export function BrainChat({
           <Icon name="brain" size={25} color="#fff" strokeWidth={1.8} />
         </div>
         <div>
-          <h1 className="font-serif text-[26px] font-medium">BRAIN</h1>
+          <h1 className="font-serif text-[26px] font-extrabold">BRAIN</h1>
           <div className="text-[13px] text-sub">
             L’assistant qui répond avec vos documents, sources citées.
           </div>
@@ -231,7 +232,7 @@ export function BrainChat({
         </form>
 
         <div className="mt-[10px] text-[12px] text-faint">
-          BRAIN peut faire des erreurs — vérifiez via les sources citées.
+          BRAIN peut faire des erreurs - vérifiez via les sources citées.
         </div>
       </div>
     </div>

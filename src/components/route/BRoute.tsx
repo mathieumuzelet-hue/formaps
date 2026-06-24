@@ -4,14 +4,22 @@ import { Icon } from '@/components/ui/Icon'
 export type BRouteProps = {
   current?: number
   compact?: boolean
+  onDark?: boolean
 }
 
-export function BRoute({ current = 1, compact }: BRouteProps) {
+export function BRoute({ current = 1, compact, onDark = false }: BRouteProps) {
   const progressWidth = `${(current / (STAGES.length - 1)) * 84}%`
+  const track = onDark ? 'bg-white/20' : 'bg-line'
+  const idleCircle = onDark
+    ? 'border-white/30 bg-white/[0.08]'
+    : 'border-line bg-surface'
+  const idleNum = onDark ? 'text-white/70' : 'text-faint'
+  const labelOn = onDark ? 'text-cream' : 'text-ink'
+  const labelOff = onDark ? 'text-white/60' : 'text-sub'
   return (
     <div className="relative flex items-start">
       {/* background line */}
-      <div className="absolute top-[13px] left-[8%] right-[8%] h-0.5 bg-line" />
+      <div className={`absolute top-[13px] left-[8%] right-[8%] h-0.5 ${track}`} />
       {/* red progress line */}
       <div
         className="absolute top-[13px] left-[8%] h-0.5 bg-red"
@@ -31,7 +39,7 @@ export function BRoute({ current = 1, compact }: BRouteProps) {
                   ? 'h-7 w-7 border-red bg-red'
                   : done
                     ? 'h-[22px] w-[22px] border-red bg-red'
-                    : 'h-[22px] w-[22px] border-line bg-surface'
+                    : `h-[22px] w-[22px] ${idleCircle}`
               }`}
             >
               {done ? (
@@ -39,13 +47,13 @@ export function BRoute({ current = 1, compact }: BRouteProps) {
               ) : on ? (
                 <span className="h-2 w-2 rounded-full bg-white" />
               ) : (
-                <span className="text-[11px] font-bold text-faint">{i + 1}</span>
+                <span className={`text-[11px] font-bold ${idleNum}`}>{i + 1}</span>
               )}
             </div>
             {!compact && (
               <div
                 className={`text-center text-[12.5px] ${
-                  on ? 'font-extrabold text-ink' : 'font-semibold text-sub'
+                  on ? `font-extrabold ${labelOn}` : `font-semibold ${labelOff}`
                 }`}
               >
                 {s}

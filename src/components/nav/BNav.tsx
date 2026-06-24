@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { Icon } from '@/components/ui/Icon'
-import { ApsLogo } from '@/components/ui/ApsLogo'
+import { BrandLockup } from '@/components/ui/BrandLockup'
 import { COLORS } from '@/lib/design/tokens'
 
 const NAV_ITEMS: ReadonlyArray<readonly [href: string, label: string]> = [
@@ -33,13 +33,8 @@ export function BNav({ firstName, role }: BNavProps) {
 
   return (
     <header className="flex items-center gap-[30px] border-b border-line bg-surface px-10 py-5">
-      <Link href="/" className="flex items-center gap-[10px]">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red">
-          <Icon name="compass" size={19} color="#fff" strokeWidth={1.9} />
-        </div>
-        <span className="font-serif text-[22px] font-semibold tracking-[-0.01em]">
-          FormA+Super
-        </span>
+      <Link href="/" className="flex items-center" aria-label="Accueil FormA+Super">
+        <BrandLockup logoH={28} />
       </Link>
 
       <nav className="ml-3 flex gap-[26px]">
@@ -84,11 +79,10 @@ export function BNav({ firstName, role }: BNavProps) {
           href="/profil"
           title="Mon profil"
           aria-label="Mon profil"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-sand text-[13px] font-bold transition-colors hover:bg-line"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-violine text-[12.5px] font-bold text-cream transition-opacity hover:opacity-90"
         >
           {initials(firstName)}
         </Link>
-        <ApsLogo height={28} />
       </div>
     </header>
   )
