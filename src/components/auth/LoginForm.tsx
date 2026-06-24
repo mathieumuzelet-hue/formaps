@@ -26,7 +26,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <div className="mb-[7px] text-[12.5px] font-bold text-sub">{label}</div>
+      <div className="mb-[7px] text-[11.5px] font-bold uppercase tracking-[0.08em] text-sub">{label}</div>
       <div className="flex items-center gap-[10px] rounded-[10px] border border-line bg-card px-[14px] py-[13px]">
         <Icon name={icon} size={18} color={COLORS.faint} />
         <input
@@ -106,7 +106,7 @@ export function LoginForm() {
       )}
 
       <div className="my-[12px] mb-[22px] flex justify-end">
-        <span className="text-[13px] font-semibold text-redink">
+        <span className="text-[13px] font-semibold text-violine">
           Mot de passe oublié ?
         </span>
       </div>
