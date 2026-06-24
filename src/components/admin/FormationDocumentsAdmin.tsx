@@ -128,7 +128,7 @@ export function FormationDocumentsAdmin({ formationId }: { formationId: string }
       <Link href="/admin/formations" className="text-[13px] font-medium text-sub hover:text-ink">
         ← Formations
       </Link>
-      <h1 className="mt-2 font-serif text-[30px] font-medium tracking-[-0.02em]">Documents</h1>
+      <h1 className="mt-2 font-serif text-[30px] font-extrabold tracking-[-0.02em]">Documents</h1>
       <p className="mt-3 text-[14.5px] text-sub">
         Documents PDF rattachés à cette formation.
       </p>

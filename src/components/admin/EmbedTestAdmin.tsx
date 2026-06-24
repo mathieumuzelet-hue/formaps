@@ -97,7 +97,7 @@ export function EmbedTestAdmin() {
 
   return (
     <div className="mx-auto max-w-[860px] px-6 py-8">
-      <h1 className="font-serif text-[26px] font-semibold">Labo d&apos;embed</h1>
+      <h1 className="font-serif text-[26px] font-extrabold">Labo d&apos;embed</h1>
       <p className="mt-1 text-[14px] text-sub">
         Testez les paramètres d&apos;ingestion d&apos;un document avant de les reporter
         manuellement dans Dify. Aucun envoi vers Dify.

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { Icon } from '@/components/ui/Icon'
+import { BrandLockup } from '@/components/ui/BrandLockup'
 
 const NAV_ITEMS: ReadonlyArray<readonly [href: string, label: string, icon: string]> = [
   ['/admin/magasins', 'Magasins', 'pin'],
@@ -25,12 +26,10 @@ export function AdminNav() {
 
   return (
     <aside className="flex w-[230px] shrink-0 flex-col border-r border-line bg-surface px-4 py-6">
-      <div className="mb-6 flex items-center gap-[10px] px-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red">
-          <Icon name="settings" size={18} color="#fff" strokeWidth={1.9} />
-        </div>
-        <span className="font-serif text-[19px] font-semibold tracking-[-0.01em]">
-          Admin
+      <div className="mb-6 flex flex-col gap-2 px-2">
+        <BrandLockup logoH={22} />
+        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-sub">
+          Console d&apos;administration
         </span>
       </div>
 
