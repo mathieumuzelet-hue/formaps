@@ -26,7 +26,7 @@ test("marque l'onglet actif (Accueil) avec le style actif", () => {
   render(<MobileTabBar />)
   const accueil = screen.getByText('Accueil').closest('a')
   expect(accueil).toHaveAttribute('aria-current', 'page')
-  expect(accueil?.className).toContain('text-redink')
+  expect(accueil?.className).toContain('text-red')
 
   const former = screen.getByText('Former').closest('a')
   expect(former).not.toHaveAttribute('aria-current')
